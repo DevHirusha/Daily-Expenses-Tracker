@@ -6,6 +6,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -16,6 +17,7 @@ import java.util.UUID;
 public class ProfileServiceImpl implements  ProfileService{
 
      private final UserRepository userRepository;
+     private final PasswordEncoder passwordEncoder;
 
 
     @Override
@@ -42,7 +44,7 @@ public class ProfileServiceImpl implements  ProfileService{
                 .email(request.getEmail())
                 .userId(UUID.randomUUID().toString())
                 .name(request.getName())
-                .password(request.getPassword())
+                .password(passwordEncoder.encode(request.getPassword()))
                 .isAccountVerified(false)
                 .resetOtpExpiredAt(0L)
                 .verifyOtp(null)
