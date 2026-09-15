@@ -6,7 +6,6 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
