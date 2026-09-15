@@ -4,11 +4,13 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class ProfileServiceImpl implements  ProfileService{
 
      private final UserRepository userRepository;
@@ -39,7 +41,7 @@ public class ProfileServiceImpl implements  ProfileService{
                 .isAccountVerified(false)
                 .resetOtpExpiredAt(0L)
                 .verifyOtp(null)
-                .verifyOtpExpireAt(0)
+                .verifyOtpExpireAt(0L)
                 .resetOtp(null)
                 .build();
     }

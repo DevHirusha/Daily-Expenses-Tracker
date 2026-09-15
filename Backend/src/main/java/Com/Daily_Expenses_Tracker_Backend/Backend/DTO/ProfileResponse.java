@@ -14,5 +14,5 @@ public class ProfileResponse {
     private String userId;
     private String name;
     private String email;
-    private String isAccountVerified;
+    private Boolean isAccountVerified;
 }
