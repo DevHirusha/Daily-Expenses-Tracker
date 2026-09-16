@@ -15,50 +15,70 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-  @Value("${jwt.secret.key}")
-  private String SECRET_KEY;
+    @Value("${jwt.secret.key}")
+    private String SECRET_KEY;
 
-  public String generateToken(UserDetails userDetails) {
-    Map<String, Object> claims = new HashMap<>();
-    return createToken(claims, userDetails.getUsername());
-  }
+    // Generate a JWT token for the authenticated user
+    public String generateToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
 
-  private String createToken(Map<String, Object> claims, String email) {
-    return Jwts.builder()
-        .setClaims(claims)
-        .setSubject(email)
-        .setIssuedAt(new Date(System.currentTimeMillis()))
-        .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hour expiration
-        .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
-        .compact();
-  }
+        return createToken(claims, userDetails.getUsername());
+    }
 
-  private Claims extractAllClaims(String token) {
+    // Create and sign the JWT token
+    private String createToken(Map<String, Object> claims, String email) {
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(email)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(
+                        new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)
+                ) // Token expires after 10 hours
+                .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
+                .compact();
+    }
+
+    // Extract all claims from the signed JWT
+    private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .setSigningKey(SECRET_KEY)
-                .parseClaimsJwt(token)
+                .parseClaimsJws(token)  // Correct parser for signed JWT
                 .getBody();
-  }
+    }
 
-  public <T> T extractClaims (String token, Function<Claims, T> claimsResolver) {
-      final Claims claims = extractAllClaims(token);
-              return claimsResolver.apply(claims);
-  }
+    // Extract a specific claim from the JWT
+    public <T> T extractClaims(
+            String token,
+            Function<Claims, T> claimsResolver
+    ) {
+        final Claims claims = extractAllClaims(token);
 
-  public String extractEmail(String token) {
-     return extractClaims(token, Claims::getSubject);
-  }
+        return claimsResolver.apply(claims);
+    }
 
-  public Date extractExpiration(String token) {
-       return extractClaims(token, Claims::getExpiration);
-  }
-  private Boolean isTokenExpired(String token) {
-       return extractExpiration(token).before(new Date());
-  }
+    // Extract the user's email from the JWT subject
+    public String extractEmail(String token) {
+        return extractClaims(token, Claims::getSubject);
+    }
 
-  public Boolean validateToken(String token, UserDetails userDetails) {
-      final String email =  extractEmail(token);
-      return (email.equals(userDetails.getUsername()) && !isTokenExpired(token));
-  }
+    // Extract the token expiration date
+    public Date extractExpiration(String token) {
+        return extractClaims(token, Claims::getExpiration);
+    }
 
+    // Check whether the JWT has expired
+    private Boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    // Validate the JWT against the authenticated user's details
+    public Boolean validateToken(
+            String token,
+            UserDetails userDetails
+    ) {
+        final String email = extractEmail(token);
+
+        return email.equals(userDetails.getUsername())
+                && !isTokenExpired(token);
+    }
 }
