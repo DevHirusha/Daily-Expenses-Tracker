@@ -5,10 +5,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.ProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -21,6 +18,11 @@ public class ProfileController {
             ProfileResponse response = profileService.createProfile(request);
             // TODO: Welcome Email
             return response;
+      }
+
+      @GetMapping("/test")
+      public String test() {
+           return "Auth is working";
       }
 
 }
