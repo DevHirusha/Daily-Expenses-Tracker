@@ -1,5 +1,6 @@
 package Com.Daily_Expenses_Tracker_Backend.Backend.Config;
 
+import Com.Daily_Expenses_Tracker_Backend.Backend.CustomAuthenticationEntryPoint;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Filter.JwtRequestFilter;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.AppUserDetailsService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class SecurityConfig {
 
         private final AppUserDetailsService appUserDetailsService;
         private final JwtRequestFilter jwtRequestFilter;
+        private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
         @Bean
         public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
@@ -43,7 +45,8 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .logout(AbstractHttpConfigurer::disable)
-                                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+                                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
+                        .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint));
                 return httpSecurity.build();
         }
 
