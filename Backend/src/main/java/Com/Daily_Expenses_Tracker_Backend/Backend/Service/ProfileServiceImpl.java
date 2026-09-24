@@ -20,6 +20,7 @@ public class ProfileServiceImpl implements  ProfileService{
 
      private final UserRepository userRepository;
      private final PasswordEncoder passwordEncoder;
+     private final EmailService emailService;
 
 
     @Override
@@ -58,7 +59,7 @@ public class ProfileServiceImpl implements  ProfileService{
         userRepository.save(existingEntity);
 
         try {
-            //TODO : send the reset otp email
+             emailService.sendResetOtpEmail(existingEntity.getEmail(),otp);
         } catch (Exception ex) {
               throw  new RuntimeException("Failed to send password reset OTP. Please try again later.", ex);
         }
