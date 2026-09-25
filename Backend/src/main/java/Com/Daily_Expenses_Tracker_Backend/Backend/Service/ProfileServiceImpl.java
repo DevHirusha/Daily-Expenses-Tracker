@@ -97,6 +97,14 @@ public class ProfileServiceImpl implements ProfileService {
         userRepository.save(existingUser);
     }
 
+    @Override
+    public String getLoggedInUserId(String email) {
+        UserEntity existingUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found :" + email));
+
+        return existingUser.getUserId();
+    }
+
     private ProfileResponse convertToProfileResponse(UserEntity newProfile) {
         return ProfileResponse.builder()
                 .name(newProfile.getName())
