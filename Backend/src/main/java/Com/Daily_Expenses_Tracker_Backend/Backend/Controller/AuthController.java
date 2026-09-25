@@ -2,9 +2,11 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Controller;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AuthRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AuthResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ResetPasswordRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.AppUserDetailsService;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.ProfileService;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Util.JwtUtil;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -133,6 +135,15 @@ public class AuthController {
                profileService.sendResetOtp(email);
           } catch (Exception e) {
                throw  new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+          }
+    }
+
+    @PostMapping("/reset-password")
+    public void resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+          try {
+              profileService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword());
+          } catch (Exception e) {
+              throw  new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
           }
     }
 }
