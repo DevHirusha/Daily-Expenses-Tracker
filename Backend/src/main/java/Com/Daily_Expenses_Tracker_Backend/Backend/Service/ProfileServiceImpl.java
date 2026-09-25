@@ -39,6 +39,7 @@ public class ProfileServiceImpl implements ProfileService {
         return convertToProfileResponse(existingUser);
     }
 
+    // Forgot Password / Reset Password process.
     @Override
     public void sendResetOtp(String email) {
         UserEntity existingEntity = userRepository.findByEmail(email)
@@ -95,6 +96,48 @@ public class ProfileServiceImpl implements ProfileService {
         existingUser.setResetOtpExpiredAt(0L);
 
         userRepository.save(existingUser);
+    }
+
+    // If sendOtp() is for account/email verification
+    @Override
+    public void sendOtp(String email) {
+
+        UserEntity existingUser = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("User not found: " + email)
+                );
+
+        if (Boolean.TRUE.equals(existingUser.getIsAccountVerified())) {
+            return;
+        }
+
+        // Generate 6-digit OTP
+        String otp = String.valueOf(
+                ThreadLocalRandom.current().nextInt(100000, 1000000)
+        );
+
+        // OTP expires after 24 hours
+        long expiryTime = System.currentTimeMillis()
+                + (24 * 60 * 60 * 1000);
+
+        // Save OTP
+        existingUser.setVerifyOtp(otp);
+        existingUser.setVerifyOtpExpireAt(expiryTime);
+
+        userRepository.save(existingUser);
+
+        // Send verification email
+        try {
+            emailService.sendOtpEmail(
+                    existingUser.getEmail(),
+                    otp
+            );
+        } catch (Exception ex) {
+            throw new RuntimeException(
+                    "Failed to send verification OTP. Please try again later.",
+                    ex
+            );
+        }
     }
 
     @Override
