@@ -16,67 +16,98 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
-public class ProfileServiceImpl implements  ProfileService{
+public class ProfileServiceImpl implements ProfileService {
 
-     private final UserRepository userRepository;
-     private final PasswordEncoder passwordEncoder;
-     private final EmailService emailService;
-
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     @Override
     public ProfileResponse createProfile(ProfileRequest request) {
         UserEntity newProfile = convertToUserEntity(request);
-        if(!userRepository.existsByEmail(request.getEmail())) {
+        if (!userRepository.existsByEmail(request.getEmail())) {
             newProfile = userRepository.save(newProfile);
             return convertToProfileResponse(newProfile);
         }
-       throw new ResponseStatusException(HttpStatus.CONFLICT, "Email Already Exists");
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Email Already Exists");
     }
 
     @Override
     public ProfileResponse getProfile(String email) {
-       UserEntity existingUser =  userRepository.findByEmail(email)
-                 .orElseThrow(() -> new UsernameNotFoundException("User not found " + email));
-       return convertToProfileResponse(existingUser);
+        UserEntity existingUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found " + email));
+        return convertToProfileResponse(existingUser);
     }
 
     @Override
     public void sendResetOtp(String email) {
-        UserEntity existingEntity =  userRepository.findByEmail(email)
+        UserEntity existingEntity = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found " + email));
 
-       // Generating a random 6-digit OTP
+        // Generating a random 6-digit OTP
         String otp = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));
 
         // Calculate expiry time (current time + 10 minutes in milliseconds)
         long expiryTime = System.currentTimeMillis() + (10 * 60 * 1000);
 
-        //update the profile/user
+        // update the profile/user
         existingEntity.setResetOtp(otp);
         existingEntity.setResetOtpExpiredAt(expiryTime);
 
-        //save into the database
+        // save into the database
         userRepository.save(existingEntity);
 
         try {
-             emailService.sendResetOtpEmail(existingEntity.getEmail(),otp);
+            emailService.sendResetOtpEmail(existingEntity.getEmail(), otp);
         } catch (Exception ex) {
-              throw  new RuntimeException("Failed to send password reset OTP. Please try again later.", ex);
+            throw new RuntimeException("Failed to send password reset OTP. Please try again later.", ex);
         }
 
     }
 
+    @Override
+    public void resetPassword(String email, String otp, String newPassword) {
+
+        UserEntity existingUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found " + email));
+
+        // Validate OTP
+        if (existingUser.getResetOtp() == null ||
+                !existingUser.getResetOtp().equals(otp)) {
+
+            throw new RuntimeException(
+                    "Invalid OTP. Please check your email and try again.");
+        }
+
+        // Validate OTP expiration
+        if (existingUser.getResetOtpExpiredAt() < System.currentTimeMillis()) {
+
+            throw new RuntimeException(
+                    "The OTP has expired. Please request a new OTP.");
+        }
+
+        // Update password
+        existingUser.setPassword(
+                passwordEncoder.encode(newPassword));
+
+        // Clear OTP after successful password reset
+        existingUser.setResetOtp(null);
+        existingUser.setResetOtpExpiredAt(0L);
+
+        userRepository.save(existingUser);
+    }
+
     private ProfileResponse convertToProfileResponse(UserEntity newProfile) {
         return ProfileResponse.builder()
-                 .name(newProfile.getName())
-                 .email(newProfile.getEmail())
-                 .userId(newProfile.getUserId())
-                 .isAccountVerified(newProfile.getIsAccountVerified())
-                 .build();
+                .name(newProfile.getName())
+                .email(newProfile.getEmail())
+                .userId(newProfile.getUserId())
+                .isAccountVerified(newProfile.getIsAccountVerified())
+                .build();
     }
 
     private UserEntity convertToUserEntity(ProfileRequest request) {
-       return UserEntity.builder()
+        return UserEntity.builder()
                 .email(request.getEmail())
                 .userId(UUID.randomUUID().toString())
                 .name(request.getName())
