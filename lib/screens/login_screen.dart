@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 
 
 class LoginScreen extends StatefulWidget {
@@ -36,9 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 40),
 
-                // =========================
+
                 // Logo
-                // =========================
+
                 Center(
                   child: Image.asset(
                     'assets/images/logo.png',
@@ -50,9 +52,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 25),
 
-                // =========================
+
                 // Welcome Text
-                // =========================
+
                 const Center(
                   child: Text(
                     'Welcome Back!',
@@ -79,9 +81,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 35),
 
-                // =========================
+
                 // Email Label
-                // =========================
+
                 const Text(
                   'Email Address',
                   style: TextStyle(
@@ -93,9 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 8),
 
-                // =========================
+
                 // Email Field
-                // =========================
+
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -118,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(
-                        color: Color(0xFFE2E8F0),
+                        color: Color(0xFF1E3A8A),
                       ),
                     ),
 
@@ -126,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(
                         color: Color(0xFF1E3A8A),
-                        width: 1.5,
+                        width: 2,
                       ),
                     ),
                   ),
@@ -134,9 +136,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // =========================
+
                 // Password Label
-                // =========================
+
                 const Text(
                   'Password',
                   style: TextStyle(
@@ -148,9 +150,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 8),
 
-                // =========================
+
                 // Password Field
-                // =========================
+
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -186,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(
-                        color: Color(0xFFE2E8F0),
+                        color: Color(0xFF1E3A8A),
                       ),
                     ),
 
@@ -194,20 +196,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(
                         color: Color(0xFF1E3A8A),
-                        width: 1.5,
+                        width: 2,
                       ),
                     ),
                   ),
                 ),
 
-                // =========================
+
                 // Forgot Password
-                // =========================
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      // Forgot Password screen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
+                        ),
+                      );
                     },
                     child: const Text(
                       'Forgot Password?',
@@ -221,9 +228,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 10),
 
-                // =========================
+
                 // Login Button
-                // =========================
+
                 SizedBox(
                   width: double.infinity,
                   height: 55,
@@ -251,9 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 25),
 
-                // =========================
+
                 // OR Divider
-                // =========================
+
                 Row(
                   children: [
                     const Expanded(
@@ -283,14 +290,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // =========================
+
                 // Google + Apple Buttons
-                // =========================
+
                 Row(
                   children: [
-                    // =========================
+
                     // Google Login
-                    // =========================
+
                     Expanded(
                       child: SizedBox(
                         height: 55,
@@ -319,9 +326,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(width: 14),
 
-                    // =========================
+
                     // Apple Login
-                    // =========================
+
                     Expanded(
                       child: SizedBox(
                         height: 55,
@@ -364,7 +371,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     TextButton(
                       onPressed: () {
-                        // Register screen එකට navigate කරන්න
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const RegisterScreen(),
+                          ),
+                        );
                       },
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.only(left: 5),
