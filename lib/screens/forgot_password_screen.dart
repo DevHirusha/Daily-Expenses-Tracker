@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
+import '../services/api_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -9,25 +9,22 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-
   // Controllers
-
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
   TextEditingController();
 
-
   // Current Step
   // 0 = Email
   // 1 = OTP
   // 2 = New Password
-
   int _currentStep = 0;
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -38,36 +35,105 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
+  // ---------- Snackbar helper ----------
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
 
-  // Continue Button
+  // ---------- Continue Button ----------
+  Future<void> _continue() async {
+    final email = _emailController.text.trim();
 
-  void _continue() {
+    // ================= STEP 0: Send OTP =================
     if (_currentStep == 0) {
-      // Send OTP API will be added here.
+      if (email.isEmpty) {
+        _showSnack('Please enter your email', Colors.orange);
+        return;
+      }
 
-      setState(() {
-        _currentStep = 1;
-      });
-    } else if (_currentStep == 1) {
-      // Verify OTP API will be added here.
+      final emailRegex = RegExp(r'^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$');
+      if (!emailRegex.hasMatch(email)) {
+        _showSnack('Please enter a valid email address', Colors.orange);
+        return;
+      }
 
-      setState(() {
-        _currentStep = 2;
-      });
-    } else {
-      // Reset Password API will be added here.
+      setState(() => _isLoading = true);
+      try {
+        await ApiService.sendResetOtp(email: email);
+        if (!mounted) return;
+        _showSnack('OTP sent to $email', Colors.green);
+        setState(() => _currentStep = 1);
+      } catch (e) {
+        if (!mounted) return;
+        _showSnack(
+          e.toString().replaceFirst('Exception: ', ''),
+          Colors.red,
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    // ================= STEP 1: Verify OTP (local) =================
+    // NOTE: backend has no verify-otp endpoint.
+    // The OTP is validated server-side when reset-password is called.
+    if (_currentStep == 1) {
+      final otp = _otpController.text.trim();
+      if (otp.length != 6) {
+        _showSnack('Please enter the 6-digit OTP', Colors.orange);
+        return;
+      }
+      setState(() => _currentStep = 2);
+      return;
+    }
+
+    // ================= STEP 2: Reset Password =================
+    final otp = _otpController.text.trim();
+    final password = _passwordController.text;
+    final confirm = _confirmPasswordController.text;
+
+    if (password.isEmpty || confirm.isEmpty) {
+      _showSnack('Please fill in both password fields', Colors.orange);
+      return;
+    }
+    if (password.length < 6) {
+      _showSnack('Password must be at least 6 characters', Colors.orange);
+      return;
+    }
+    if (password != confirm) {
+      _showSnack('Passwords do not match', Colors.red);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await ApiService.resetPassword(
+        email: email,
+        otp: otp,
+        newPassword: password,
+      );
+      if (!mounted) return;
       _showSuccessMessage();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(
+        e.toString().replaceFirst('Exception: ', ''),
+        Colors.red,
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-
-  // Success Dialog
-
+  // ---------- Success Dialog ----------
   void _showSuccessMessage() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -107,8 +173,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
+                // Pop dialog, then pop this screen back to Login
+                Navigator.of(dialogContext).pop();
+                Navigator.of(context).pop();
               },
               child: const Text(
                 'Go to Login',
@@ -125,9 +192,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // Page Title
-
+  // ---------- Page Title ----------
   String get _title {
     switch (_currentStep) {
       case 0:
@@ -139,9 +204,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
-
-  // Page Description
-
+  // ---------- Page Description ----------
   String get _description {
     switch (_currentStep) {
       case 0:
@@ -153,9 +216,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
-
-  // Button Text
-
+  // ---------- Button Text ----------
   String get _buttonText {
     switch (_currentStep) {
       case 0:
@@ -167,14 +228,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
-
-  // Go Back
-
+  // ---------- Go Back ----------
   void _goBack() {
+    if (_isLoading) return; // prevent back while loading
     if (_currentStep > 0) {
-      setState(() {
-        _currentStep--;
-      });
+      setState(() => _currentStep--);
     } else {
       Navigator.pop(context);
     }
@@ -193,9 +251,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               children: [
                 const SizedBox(height: 25),
 
-
                 // Back Button
-
                 IconButton(
                   onPressed: _goBack,
                   padding: EdgeInsets.zero,
@@ -209,9 +265,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 20),
 
-
                 // Logo
-
                 Center(
                   child: Image.asset(
                     'assets/images/logo.png',
@@ -223,9 +277,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 20),
 
-
                 // Title
-
                 Center(
                   child: Text(
                     _title,
@@ -240,9 +292,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 8),
 
-
                 // Description
-
                 Center(
                   child: Text(
                     _description,
@@ -257,16 +307,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 32),
 
-
                 // Progress Indicator
-
                 _buildProgressIndicator(),
 
                 const SizedBox(height: 35),
 
-
                 // Step Content
-
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
                   child: _buildCurrentStep(),
@@ -274,14 +320,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 30),
 
-
                 // Continue Button
-
                 SizedBox(
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton(
-                    onPressed: _continue,
+                    onPressed: _isLoading ? null : _continue,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E3A8A),
                       foregroundColor: Colors.white,
@@ -290,7 +334,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: Text(
+                    child: _isLoading
+                        ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                        : Text(
                       _buttonText,
                       style: const TextStyle(
                         fontSize: 17,
@@ -302,12 +355,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 20),
 
-
                 // Back to Login
-
                 Center(
                   child: TextButton(
-                    onPressed: () {
+                    onPressed: _isLoading
+                        ? null
+                        : () {
                       Navigator.pop(context);
                     },
                     style: TextButton.styleFrom(
@@ -334,25 +387,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // Current Step Widget
-
+  // ---------- Current Step Widget ----------
   Widget _buildCurrentStep() {
     switch (_currentStep) {
       case 0:
         return _buildEmailStep();
-
       case 1:
         return _buildOtpStep();
-
       default:
         return _buildNewPasswordStep();
     }
   }
 
-
-  // Email Step
-
+  // ---------- Email Step ----------
   Widget _buildEmailStep() {
     return Column(
       key: const ValueKey('emailStep'),
@@ -370,6 +417,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         TextField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
+          enabled: !_isLoading,
           decoration: _inputDecoration(
             hintText: 'Enter your email',
             icon: Icons.email_outlined,
@@ -379,9 +427,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // OTP Step
-
+  // ---------- OTP Step ----------
   Widget _buildOtpStep() {
     return Column(
       key: const ValueKey('otpStep'),
@@ -401,6 +447,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           keyboardType: TextInputType.number,
           maxLength: 6,
           textAlign: TextAlign.center,
+          enabled: !_isLoading,
+          style: const TextStyle(
+            fontSize: 22,
+            letterSpacing: 8,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E3A8A),
+          ),
           decoration: _inputDecoration(
             hintText: 'Enter 6-digit OTP',
             icon: Icons.lock_clock_outlined,
@@ -422,9 +475,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 8),
         Center(
           child: TextButton(
-            onPressed: () {
-              // Resend OTP API will be added here.
-            },
+            onPressed: _isLoading ? null : _resendOtp,
             style: TextButton.styleFrom(
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -442,9 +493,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
+  // ---------- Resend OTP ----------
+  Future<void> _resendOtp() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showSnack('Email is missing, please go back', Colors.orange);
+      return;
+    }
 
-  // New Password Step
+    setState(() => _isLoading = true);
+    try {
+      await ApiService.sendResetOtp(email: email);
+      if (!mounted) return;
+      _showSnack('OTP resent to $email', Colors.green);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(
+        e.toString().replaceFirst('Exception: ', ''),
+        Colors.red,
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
+  // ---------- New Password Step ----------
   Widget _buildNewPasswordStep() {
     return Column(
       key: const ValueKey('passwordStep'),
@@ -462,6 +535,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         TextField(
           controller: _passwordController,
           obscureText: _obscurePassword,
+          enabled: !_isLoading,
           decoration: _inputDecoration(
             hintText: 'Enter new password',
             icon: Icons.lock_outline,
@@ -494,6 +568,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         TextField(
           controller: _confirmPasswordController,
           obscureText: _obscureConfirmPassword,
+          enabled: !_isLoading,
           decoration: _inputDecoration(
             hintText: 'Confirm new password',
             icon: Icons.lock_outline,
@@ -517,9 +592,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // Input Decoration
-
+  // ---------- Input Decoration ----------
   InputDecoration _inputDecoration({
     required String hintText,
     required IconData icon,
@@ -564,9 +637,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // Progress Indicator
-
+  // ---------- Progress Indicator ----------
   Widget _buildProgressIndicator() {
     return Row(
       children: [
@@ -579,9 +650,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // Step Circle
-
+  // ---------- Step Circle ----------
   Widget _stepIndicator(int step) {
     final bool isActive = _currentStep >= step;
 
@@ -606,9 +675,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-
-  // Step Line
-
+  // ---------- Step Line ----------
   Widget _stepLine(int step) {
     final bool isActive = _currentStep > step;
 
