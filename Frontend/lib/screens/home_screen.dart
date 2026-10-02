@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
+import 'Shared_expenses_dashboard.dart';
 
 class HomeScreen extends StatelessWidget {
   final String email;
@@ -134,18 +135,24 @@ class HomeScreen extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
-                children: const [
-                  _QuickAction(
+                children: [
+                  const _QuickAction(
                     icon: Icons.add_circle_outline,
                     label: 'Add',
                   ),
-                  _QuickAction(
+                  const _QuickAction(
                     icon: Icons.remove_circle_outline,
                     label: 'Expense',
                   ),
                   _QuickAction(
-                    icon: Icons.list_alt_outlined,
-                    label: 'History',
+                    icon: Icons.people_alt_outlined,
+                    label: 'Shared expenses',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SharedExpensesScreen(),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -200,8 +207,13 @@ class HomeScreen extends StatelessWidget {
 class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
-  const _QuickAction({required this.icon, required this.label});
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -210,20 +222,25 @@ class _QuickAction extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: const Color(0xFF1E3A8A), size: 30),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF334155),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: const Color(0xFF1E3A8A), size: 30),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

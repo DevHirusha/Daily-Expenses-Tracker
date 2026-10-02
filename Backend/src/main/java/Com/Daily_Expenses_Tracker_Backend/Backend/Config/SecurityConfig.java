@@ -45,9 +45,10 @@ public class SecurityConfig {
                 httpSecurity.cors(Customizer.withDefaults())
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/login", "/register", "/send-reset-otp", "/send-otp",
-                                                                "/reset-password", "/logout")
-                                                .permitAll().anyRequest().authenticated())
+                                                       .requestMatchers("/api/v1.0/profile", "/api/v1.0/is-authenticated")
+                                                                       .authenticated()
+                                                       .requestMatchers("/api/v1.0/**").permitAll()
+                                                       .anyRequest().authenticated())
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .logout(AbstractHttpConfigurer::disable)

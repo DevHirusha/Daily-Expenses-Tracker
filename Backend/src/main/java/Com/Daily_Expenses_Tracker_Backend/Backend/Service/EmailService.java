@@ -17,7 +17,11 @@ public class EmailService {
     @Value("${spring.mail.properties.mail.smtp.from}")
     private String fromEmail;
 
+    @Value("${app.mail.enabled:false}")
+    private boolean mailEnabled;
+
     public void sendWelcomeEmail(String toEmail, String name) {
+        if (!mailEnabled) return;
 
         try {
 
@@ -242,6 +246,7 @@ public class EmailService {
     }
 
     public void sendResetOtpEmail(String toEmail, String otp) {
+        if (!mailEnabled) return;
 
         try {
 
@@ -492,6 +497,7 @@ public class EmailService {
     }
 
     public void sendOtpEmail(String toEmail, String otp) {
+        if (!mailEnabled) return;
 
         try {
 

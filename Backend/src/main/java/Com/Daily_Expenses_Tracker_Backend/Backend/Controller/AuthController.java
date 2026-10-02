@@ -27,6 +27,7 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
+@RequestMapping("/api/v1.0")
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;

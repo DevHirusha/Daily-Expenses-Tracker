@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:3030/api/v1.0';
+  static final String baseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  ).isNotEmpty
+      ? const String.fromEnvironment('API_BASE_URL')
+      : kIsWeb || defaultTargetPlatform != TargetPlatform.android
+          ? 'http://localhost:3030/api/v1.0'
+          : 'http://10.0.2.2:3030/api/v1.0';
 
   // ---------- REGISTER ----------
   static Future<Map<String, dynamic>> register({
@@ -60,7 +67,7 @@ class ApiService {
         }
       } catch (_) {}
       throw Exception(message);
-    } on SocketException {
+    } on http.ClientException {
       throw Exception('Cannot reach server. Is backend running on port 3030?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
@@ -107,7 +114,7 @@ class ApiService {
         }
       } catch (_) {}
       throw Exception(message);
-    } on SocketException {
+    } on http.ClientException {
       throw Exception('Cannot reach server. Is backend running on port 3030?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
@@ -154,13 +161,11 @@ class ApiService {
         }
       } catch (_) {}
       throw Exception(message);
-    } on SocketException catch (e) {
+    } on http.ClientException catch (e) {
       print('SOCKET ERROR: $e');
       throw Exception('Cannot reach server. Is backend running on port 3030?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
-    } on HttpException catch (e) {
-      throw Exception('HTTP error: ${e.message}');
     } on FormatException catch (e) {
       throw Exception('Bad JSON from server: ${e.message}');
     } on Exception catch (e) {

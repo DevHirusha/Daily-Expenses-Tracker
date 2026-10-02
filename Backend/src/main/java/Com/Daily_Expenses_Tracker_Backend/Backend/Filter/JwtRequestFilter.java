@@ -25,8 +25,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     private final AppUserDetailsService appUserDetailsService;
     private final JwtUtil jwtUtil;
 
-    private static final List<String> PUBLIC_URLS = List.of("/login", "/register", "/send-reset-otp",
-            "/reset-password", "/logout");
+        private static final List<String> PUBLIC_URLS = List.of("/api/v1.0/login", "/api/v1.0/register",
+            "/api/v1.0/send-reset-otp", "/api/v1.0/reset-password", "/api/v1.0/logout");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -42,7 +42,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         // Extract the Authorization header from the incoming HTTP request
         final String authorizationHeader = request.getHeader("Authorization");
         // Check whether the Authorization header contains a Bearer token
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer")) {
+        if (authorizationHeader != null && authorizationHeader.regionMatches(true, 0, "Bearer ", 0, 7)) {
             // Extract the JWT token by removing the "Bearer " prefix
             jwt = authorizationHeader.substring(7);
         }
