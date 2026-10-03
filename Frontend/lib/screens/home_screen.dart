@@ -6,17 +6,13 @@ class HomeScreen extends StatelessWidget {
   final String email;
   final String token;
 
-  const HomeScreen({
-    super.key,
-    required this.email,
-    required this.token,
-  });
+  const HomeScreen({super.key, required this.email, required this.token});
 
   void _logout(BuildContext context) {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
+      (route) => false,
     );
   }
 
@@ -58,10 +54,7 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     const Text(
                       'Welcome back,',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -98,10 +91,7 @@ class HomeScreen extends StatelessWidget {
                   children: const [
                     Text(
                       'Total Balance',
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
                     ),
                     SizedBox(height: 8),
                     Text(
@@ -150,7 +140,7 @@ class HomeScreen extends StatelessWidget {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const SharedExpensesScreen(),
+                        builder: (_) => SharedExpensesScreen(token: token),
                       ),
                     ),
                   ),
@@ -188,10 +178,7 @@ class HomeScreen extends StatelessWidget {
                     SizedBox(height: 10),
                     Text(
                       'No transactions yet',
-                      style: TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
                     ),
                   ],
                 ),
@@ -209,11 +196,7 @@ class _QuickAction extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
 
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _QuickAction({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {

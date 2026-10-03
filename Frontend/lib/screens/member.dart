@@ -1,10 +1,55 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import 'add_member.dart';
 import 'crate_group.dart';
+import 'friendlist.dart';
 import 'group.dart';
 
-class MembersScreen extends StatelessWidget {
-  const MembersScreen({super.key});
+class MembersScreen extends StatefulWidget {
+  final String token;
+
+  const MembersScreen({super.key, required this.token});
+
+  @override
+  State<MembersScreen> createState() => _MembersScreenState();
+}
+
+class _MembersScreenState extends State<MembersScreen> {
+  List<_Group> groups = const [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGroups();
+  }
+
+  Future<void> _loadGroups() async {
+    try {
+      final result = await ApiService.getGroups(token: widget.token);
+      if (!mounted) return;
+      setState(() {
+        groups = result.map(_Group.fromJson).toList();
+        isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openCreateGroup() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => CreateGroupScreen(token: widget.token)),
+    );
+    if (created == true) _loadGroups();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,19 +88,18 @@ class MembersScreen extends StatelessWidget {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const AddMemberScreen(),
+                          builder: (_) => AddMemberScreen(token: widget.token),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(
+                  const Expanded(
                     child: _ActionButton(
                       label: 'Join',
                       icon: Icons.people_alt_outlined,
-                      backgroundColor: const Color(0xFFF47C20),
+                      backgroundColor: Color(0xFFF47C20),
                       foregroundColor: Colors.white,
-                      onTap: () {},
                     ),
                   ),
                 ],
@@ -66,7 +110,12 @@ class MembersScreen extends StatelessWidget {
                 label: 'See Friends',
                 iconBackground: const Color(0xFFE1E8FA),
                 iconColor: const Color(0xFF172C57),
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FriendListScreen(token: widget.token),
+                  ),
+                ),
               ),
               const SizedBox(height: 28),
               Row(
@@ -84,57 +133,86 @@ class MembersScreen extends StatelessWidget {
                   _SmallButton(
                     label: 'New',
                     icon: Icons.add,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CreateGroupScreen(),
-                      ),
-                    ),
+                    onTap: _openCreateGroup,
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              _GroupCard(
-                name: 'Family',
-                details: '3 members • Active',
-                icon: Icons.home_outlined,
-                iconBackground: Color(0xFFFFE1C7),
-                iconColor: Color(0xFFF47C20),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const GroupDetailsScreen(
-                      name: 'Family',
-                      memberCount: '3 members',
-                      description:
-                          'Our family budget group. Let’s manage our expenses together.',
-                      joinCode: '7K4-92B',
+              if (isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (groups.isEmpty)
+                const _EmptyGroups()
+              else
+                ...groups.map(
+                  (group) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _GroupCard(
+                      name: group.name,
+                      details: '${group.memberCount} members • Active',
+                      icon: Icons.groups_outlined,
+                      iconBackground: const Color(0xFFE1E8FA),
+                      iconColor: const Color(0xFF5A8DEE),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GroupDetailsScreen(
+                            token: widget.token,
+                            groupId: group.id,
+                            name: group.name,
+                            memberCount: '${group.memberCount} members',
+                            joinCode: group.joinCode,
+                            isOwner: group.isOwner,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _GroupCard(
-                name: 'Boarding Trip',
-                details: '5 members • Active',
-                icon: Icons.cancel_outlined,
-                iconBackground: Color(0xFFE1E8FA),
-                iconColor: Color(0xFF5A8DEE),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const GroupDetailsScreen(
-                      name: 'Boarding Trip',
-                      memberCount: '5 members',
-                      description:
-                          'Shared trip expenses and plans for the group.',
-                      joinCode: 'B8P-41C',
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Group {
+  final int id;
+  final String name;
+  final String joinCode;
+  final int memberCount;
+  final bool isOwner;
+
+  const _Group({
+    required this.id,
+    required this.name,
+    required this.joinCode,
+    required this.memberCount,
+    required this.isOwner,
+  });
+
+  factory _Group.fromJson(Map<String, dynamic> json) {
+    return _Group(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: json['name']?.toString() ?? 'Unnamed group',
+      joinCode: json['joinCode']?.toString() ?? '',
+      memberCount: (json['memberCount'] as num?)?.toInt() ?? 0,
+      isOwner: json['owner'] == true,
+    );
+  }
+}
+
+class _EmptyGroups extends StatelessWidget {
+  const _EmptyGroups();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 32),
+      child: Center(
+        child: Text(
+          'No groups yet. Create one to get started.',
+          style: TextStyle(color: Color(0xFF7890B8)),
         ),
       ),
     );
@@ -146,14 +224,14 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final Color backgroundColor;
   final Color foregroundColor;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ActionButton({
     required this.label,
     required this.icon,
     required this.backgroundColor,
     required this.foregroundColor,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
@@ -199,9 +277,7 @@ class _SmallButton extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -240,10 +316,10 @@ class _MenuRow extends StatelessWidget {
                 child: Icon(icon, color: iconColor, size: 21),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'See Friends',
-                  style: TextStyle(
+                  label,
+                  style: const TextStyle(
                     color: Color(0xFF172C57),
                     fontSize: 15,
                     fontWeight: FontWeight.bold,

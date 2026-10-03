@@ -14,12 +14,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
 
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -33,11 +35,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
+    final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       _showMessage('Please fill in all fields');
+      return;
+    }
+
+    if (username.isNotEmpty &&
+        !RegExp(r'^[a-zA-Z0-9._]{3,30}$').hasMatch(username)) {
+      _showMessage(
+        'Username must be 3-30 letters, numbers, dots, or underscores',
+      );
       return;
     }
 
@@ -57,6 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final result = await ApiService.register(
         name: name,
+        username: username.isEmpty ? null : username,
         email: email,
         password: password,
       );
@@ -135,6 +147,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   icon: Icons.person_outline,
                   keyboardType: TextInputType.name,
                   textCapitalization: TextCapitalization.words,
+                ),
+
+                const SizedBox(height: 18),
+
+                // Username
+                _buildLabel('Username (optional)'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _usernameController,
+                  hint: 'Leave blank to generate one',
+                  icon: Icons.alternate_email,
+                  keyboardType: TextInputType.text,
                 ),
 
                 const SizedBox(height: 18),

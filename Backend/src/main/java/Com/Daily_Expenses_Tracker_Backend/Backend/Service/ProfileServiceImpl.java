@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -24,7 +25,12 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ProfileResponse createProfile(ProfileRequest request) {
+        String username = resolveUsername(request.getUsername(), request.getName());
+        if (userRepository.existsByUsername(username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username Already Exists");
+        }
         UserEntity newProfile = convertToUserEntity(request);
+        newProfile.setUsername(username);
         if (!userRepository.existsByEmail(request.getEmail())) {
             newProfile = userRepository.save(newProfile);
             return convertToProfileResponse(newProfile);
@@ -169,6 +175,7 @@ public class ProfileServiceImpl implements ProfileService {
     private ProfileResponse convertToProfileResponse(UserEntity newProfile) {
         return ProfileResponse.builder()
                 .name(newProfile.getName())
+            .username(newProfile.getUsername())
                 .email(newProfile.getEmail())
                 .userId(newProfile.getUserId())
                 .isAccountVerified(newProfile.getIsAccountVerified())
@@ -187,5 +194,27 @@ public class ProfileServiceImpl implements ProfileService {
                 .verifyOtpExpireAt(0L)
                 .resetOtp(null)
                 .build();
+    }
+
+    private String resolveUsername(String requestedUsername, String name) {
+        if (requestedUsername != null && !requestedUsername.isBlank()) {
+            return requestedUsername.trim().toLowerCase(Locale.ROOT);
+        }
+
+        String baseUsername = name.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]", "");
+        if (baseUsername.length() < 3) {
+            baseUsername = "user";
+        }
+        baseUsername = baseUsername.substring(0, Math.min(baseUsername.length(), 25));
+
+        String username = baseUsername;
+        int suffix = 1;
+        while (userRepository.existsByUsername(username)) {
+            String suffixText = String.valueOf(++suffix);
+            int baseLength = Math.min(30 - suffixText.length(), baseUsername.length());
+            username = baseUsername.substring(0, baseLength) + suffixText;
+        }
+        return username;
     }
 }

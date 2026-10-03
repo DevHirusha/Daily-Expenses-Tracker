@@ -1,27 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../services/api_service.dart';
 
-class GroupDetailsScreen extends StatelessWidget {
+class GroupDetailsScreen extends StatefulWidget {
+  final String token;
+  final int groupId;
   final String name;
   final String memberCount;
-  final String description;
   final String joinCode;
+  final bool isOwner;
 
   const GroupDetailsScreen({
     super.key,
+    required this.token,
+    required this.groupId,
     required this.name,
     required this.memberCount,
-    required this.description,
     required this.joinCode,
+    required this.isOwner,
   });
 
-  void _copyLink(BuildContext context) {
-    Clipboard.setData(
-      ClipboardData(text: 'daily-expenses://group/$joinCode'),
+  @override
+  State<GroupDetailsScreen> createState() => _GroupDetailsScreenState();
+}
+
+class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
+  Future<void> _showMembers() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _MembersDialog(
+        token: widget.token,
+        groupId: widget.groupId,
+        isOwner: widget.isOwner,
+      ),
     );
+  }
+
+  Future<void> _leaveGroup() async {
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave group?'),
+        content: const Text('You will no longer have access to this group.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (shouldLeave != true || !mounted) return;
+
+    try {
+      await ApiService.leaveGroup(token: widget.token, groupId: widget.groupId);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
+  void _copyLink() {
+    Clipboard.setData(
+      ClipboardData(text: 'daily-expenses://group/${widget.joinCode}'),
+    );
+    _showMessage('Group link copied', isError: false);
+  }
+
+  void _showMessage(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Group link copied')),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
     );
   }
 
@@ -51,16 +111,14 @@ class GroupDetailsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _GroupHeader(name: name, memberCount: memberCount),
+              _GroupHeader(name: widget.name, memberCount: widget.memberCount),
               const SizedBox(height: 12),
-              _DescriptionCard(name: name, description: description),
-              const SizedBox(height: 12),
-              _InviteCard(joinCode: joinCode, onCopy: () => _copyLink(context)),
+              _InviteCard(joinCode: widget.joinCode, onCopy: _copyLink),
               const SizedBox(height: 12),
               _SettingsRow(
                 icon: Icons.people_alt_outlined,
                 label: 'View members',
-                onTap: () {},
+                onTap: _showMembers,
               ),
               const SizedBox(height: 8),
               _SettingsRow(
@@ -72,11 +130,250 @@ class GroupDetailsScreen extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.logout,
                 label: 'Leave group',
-                onTap: () {},
+                onTap: _leaveGroup,
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MembersDialog extends StatefulWidget {
+  final String token;
+  final int groupId;
+  final bool isOwner;
+
+  const _MembersDialog({
+    required this.token,
+    required this.groupId,
+    required this.isOwner,
+  });
+
+  @override
+  State<_MembersDialog> createState() => _MembersDialogState();
+}
+
+class _MembersDialogState extends State<_MembersDialog> {
+  List<_Member> members = const [];
+  List<_Member> friends = const [];
+  bool isLoading = true;
+  bool isAdding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final results = await Future.wait([
+        ApiService.getGroupMembers(
+          token: widget.token,
+          groupId: widget.groupId,
+        ),
+        ApiService.getFriends(token: widget.token),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        members = results[0].map(_Member.fromJson).toList();
+        friends = results[1].map(_Member.fromJson).toList();
+        isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _addMember(_Member friend) async {
+    setState(() => isAdding = true);
+    try {
+      await ApiService.addGroupMember(
+        token: widget.token,
+        groupId: widget.groupId,
+        userId: friend.userId,
+      );
+      await _loadData();
+      _showMessage('${friend.name} added to the group', isError: false);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => isAdding = false);
+    }
+  }
+
+  Future<void> _removeMember(_Member member) async {
+    try {
+      await ApiService.removeGroupMember(
+        token: widget.token,
+        groupId: widget.groupId,
+        userId: member.userId,
+      );
+      await _loadData();
+      _showMessage('${member.name} removed', isError: false);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
+  void _showMessage(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final memberIds = members.map((member) => member.userId).toSet();
+    final availableFriends = friends
+        .where((friend) => !memberIds.contains(friend.userId))
+        .toList();
+
+    return AlertDialog(
+      title: const Text('Group members'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: isLoading
+            ? const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ...members.map(
+                      (member) => _MemberRow(
+                        member: member,
+                        canRemove: widget.isOwner && member.role != 'OWNER',
+                        onRemove: () => _removeMember(member),
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    const Text(
+                      'Add from friends',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    if (availableFriends.isEmpty)
+                      const Text('All your friends are already in this group.')
+                    else
+                      ...availableFriends.map(
+                        (friend) => _FriendToAddRow(
+                          member: friend,
+                          isAdding: isAdding,
+                          onAdd: () => _addMember(friend),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Done'),
+        ),
+      ],
+    );
+  }
+}
+
+class _Member {
+  final String userId;
+  final String name;
+  final String username;
+  final String role;
+
+  const _Member({
+    required this.userId,
+    required this.name,
+    required this.username,
+    required this.role,
+  });
+
+  factory _Member.fromJson(Map<String, dynamic> json) {
+    final username = json['username']?.toString() ?? '';
+    return _Member(
+      userId: json['userId']?.toString() ?? '',
+      name: json['name']?.toString() ?? username,
+      username: username,
+      role: json['role']?.toString() ?? 'MEMBER',
+    );
+  }
+}
+
+class _MemberRow extends StatelessWidget {
+  final _Member member;
+  final bool canRemove;
+  final VoidCallback onRemove;
+
+  const _MemberRow({
+    required this.member,
+    required this.canRemove,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFF294C88),
+        child: Text(
+          member.name.substring(0, 1).toUpperCase(),
+          style: const TextStyle(color: Colors.white),
+        ),
+      ),
+      title: Text(member.name),
+      subtitle: Text('@${member.username}'),
+      trailing: canRemove
+          ? IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.person_remove_outlined, color: Colors.red),
+              tooltip: 'Remove member',
+            )
+          : Text(member.role == 'OWNER' ? 'Owner' : 'Member'),
+    );
+  }
+}
+
+class _FriendToAddRow extends StatelessWidget {
+  final _Member member;
+  final bool isAdding;
+  final VoidCallback onAdd;
+
+  const _FriendToAddRow({
+    required this.member,
+    required this.isAdding,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        child: Text(member.name.substring(0, 1).toUpperCase()),
+      ),
+      title: Text(member.name),
+      subtitle: Text('@${member.username}'),
+      trailing: IconButton(
+        onPressed: isAdding ? null : onAdd,
+        icon: const Icon(Icons.person_add_alt_1),
+        tooltip: 'Add member',
       ),
     );
   }
@@ -129,66 +426,6 @@ class _GroupHeader extends StatelessWidget {
   }
 }
 
-class _DescriptionCard extends StatelessWidget {
-  final String name;
-  final String description;
-
-  const _DescriptionCard({required this.name, required this.description});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 21,
-                backgroundColor: Color(0xFFE1E8FA),
-                child: Icon(Icons.groups, color: Color(0xFF172C57)),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Group name',
-                    style: TextStyle(color: Color(0xFF7895C0), fontSize: 12),
-                  ),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      color: Color(0xFF172C57),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            description,
-            style: const TextStyle(
-              color: Color(0xFF7090C0),
-              fontSize: 15,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _InviteCard extends StatelessWidget {
   final String joinCode;
   final VoidCallback onCopy;
@@ -221,24 +458,10 @@ class _InviteCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _OutlineButton(
-                  icon: Icons.copy_outlined,
-                  label: 'Copy link',
-                  onTap: onCopy,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _OutlineButton(
-                  icon: Icons.ios_share_outlined,
-                  label: 'Share',
-                  onTap: () {},
-                ),
-              ),
-            ],
+          OutlinedButton.icon(
+            onPressed: onCopy,
+            icon: const Icon(Icons.copy_outlined, size: 16),
+            label: const Text('Copy link'),
           ),
           const SizedBox(height: 7),
           const Text(
@@ -259,33 +482,6 @@ class _InviteCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _OutlineButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _OutlineButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFF172C57),
-        side: const BorderSide(color: Color(0xFF315589)),
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

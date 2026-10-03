@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class CreateGroupScreen extends StatefulWidget {
-  const CreateGroupScreen({super.key});
+  final String token;
+
+  const CreateGroupScreen({super.key, required this.token});
 
   @override
   State<CreateGroupScreen> createState() => _CreateGroupScreenState();
@@ -10,19 +13,31 @@ class CreateGroupScreen extends StatefulWidget {
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final groupNameController = TextEditingController();
   final searchController = TextEditingController();
+  List<_Person> members = const [];
+  final selected = <String>{};
+  bool isLoading = true;
+  bool isCreating = false;
 
-  final members = const [
-    _Person('Nuwan Silva', 'nuwan@gmail.com', Color(0xFF294C88)),
-    _Person('Pavithra Fernando', 'pavithra@gmail.com', Color(0xFF16AFA5)),
-    _Person('Amali Perera', 'amali@gmail.com', Color(0xFF673AB7)),
-    _Person('Sangeeth Wijesinghe', 'sangeeth@gmail.com', Color(0xFFF97316)),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadFriends();
+  }
 
-  final selected = <String>{
-    'Nuwan Silva',
-    'Pavithra Fernando',
-    'Amali Perera',
-  };
+  Future<void> _loadFriends() async {
+    try {
+      final friends = await ApiService.getFriends(token: widget.token);
+      if (!mounted) return;
+      setState(() {
+        members = friends.map(_Person.fromJson).toList();
+        isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
 
   @override
   void dispose() {
@@ -33,24 +48,40 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   void _toggleMember(_Person person) {
     setState(() {
-      if (selected.contains(person.name)) {
-        selected.remove(person.name);
+      if (selected.contains(person.userId)) {
+        selected.remove(person.userId);
       } else if (selected.length < 10) {
-        selected.add(person.name);
+        selected.add(person.userId);
       }
     });
   }
 
-  void _createGroup() {
+  Future<void> _createGroup() async {
     final name = groupNameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a group name')),
-      );
+      _showMessage('Enter a group name');
       return;
     }
+    setState(() => isCreating = true);
+    try {
+      await ApiService.createGroup(
+        token: widget.token,
+        name: name,
+        memberUserIds: selected.toList(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => isCreating = false);
+    }
+  }
+
+  void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$name group created')),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -58,9 +89,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   Widget build(BuildContext context) {
     final query = searchController.text.trim().toLowerCase();
     final results = members
-        .where((person) =>
-            person.name.toLowerCase().contains(query) ||
-            person.email.toLowerCase().contains(query))
+        .where(
+          (person) =>
+              person.name.toLowerCase().contains(query) ||
+              person.email.toLowerCase().contains(query),
+        )
         .toList();
 
     return Scaffold(
@@ -93,9 +126,15 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 controller: searchController,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF41699F)),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF41699F),
+                  ),
                   hintText: 'Search by name or email',
-                  hintStyle: const TextStyle(color: Color(0xFF88A4CE), fontSize: 12),
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF88A4CE),
+                    fontSize: 12,
+                  ),
                   filled: true,
                   fillColor: const Color(0xFFF4F7FD),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -111,23 +150,29 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 style: TextStyle(color: Color(0xFF7995C0), fontSize: 11),
               ),
               const SizedBox(height: 6),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F8FE),
-                  borderRadius: BorderRadius.circular(12),
+              if (isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(28),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F8FE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: results
+                        .map(
+                          (person) => _PersonRow(
+                            person: person,
+                            selected: selected.contains(person.userId),
+                            onTap: () => _toggleMember(person),
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ),
-                child: Column(
-                  children: results
-                      .map(
-                        (person) => _PersonRow(
-                          person: person,
-                          selected: selected.contains(person.name),
-                          onTap: () => _toggleMember(person),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -138,7 +183,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   ),
                   Text(
                     '${selected.length}/10',
-                    style: const TextStyle(color: Color(0xFF7995C0), fontSize: 11),
+                    style: const TextStyle(
+                      color: Color(0xFF7995C0),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -150,7 +198,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 ),
                 child: Column(
                   children: members
-                      .where((person) => selected.contains(person.name))
+                      .where((person) => selected.contains(person.userId))
                       .map(
                         (person) => _SelectedPersonRow(
                           person: person,
@@ -165,7 +213,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _createGroup,
+                  onPressed: isCreating ? null : _createGroup,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF97316),
                     foregroundColor: Colors.white,
@@ -174,10 +222,16 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       borderRadius: BorderRadius.circular(11),
                     ),
                   ),
-                  child: const Text(
-                    'Create Group',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: isCreating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white),
+                        )
+                      : const Text(
+                          'Create Group',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],
@@ -189,12 +243,35 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 }
 
 class _Person {
+  final String userId;
   final String name;
   final String email;
   final Color color;
 
-  const _Person(this.name, this.email, this.color);
+  const _Person({
+    required this.userId,
+    required this.name,
+    required this.email,
+    required this.color,
+  });
+
+  factory _Person.fromJson(Map<String, dynamic> json) {
+    final username = json['username']?.toString() ?? '';
+    return _Person(
+      userId: json['userId']?.toString() ?? '',
+      name: json['name']?.toString() ?? username,
+      email: json['email']?.toString() ?? '@$username',
+      color: _personColors[username.hashCode.abs() % _personColors.length],
+    );
+  }
 }
+
+const _personColors = [
+  Color(0xFF294C88),
+  Color(0xFF16AFA5),
+  Color(0xFF673AB7),
+  Color(0xFFF97316),
+];
 
 class _GroupNameField extends StatelessWidget {
   final TextEditingController controller;
@@ -256,12 +333,20 @@ class _PersonRow extends StatelessWidget {
             icon: Icon(selected ? Icons.check : Icons.add, size: 14),
             label: Text(selected ? 'Added' : 'Add'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: selected ? const Color(0xFF7995C0) : const Color(0xFF1D5AAA),
-              side: BorderSide(color: selected ? const Color(0xFFB9C9E4) : const Color(0xFF2B68B3)),
+              foregroundColor: selected
+                  ? const Color(0xFF7995C0)
+                  : const Color(0xFF1D5AAA),
+              side: BorderSide(
+                color: selected
+                    ? const Color(0xFFB9C9E4)
+                    : const Color(0xFF2B68B3),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
             ),
           ),
         ],
@@ -309,7 +394,11 @@ class _Avatar extends StatelessWidget {
       backgroundColor: person.color,
       child: Text(
         person.name.substring(0, 1),
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -327,7 +416,11 @@ class _PersonDetails extends StatelessWidget {
       children: [
         Text(
           person.name,
-          style: const TextStyle(color: Color(0xFF1B477F), fontSize: 11, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Color(0xFF1B477F),
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 2),
         Text(

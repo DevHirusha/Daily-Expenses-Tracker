@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'member.dart';
+import 'add_expense.dart';
+import 'shared_owned_budget_profile.dart';
+import 'shared_with_me.dart';
+import '../services/api_service.dart';
 
 class SharedExpensesScreen extends StatefulWidget {
-  const SharedExpensesScreen({super.key});
+  final String token;
+
+  const SharedExpensesScreen({super.key, required this.token});
 
   @override
   State<SharedExpensesScreen> createState() => _SharedExpensesScreenState();
@@ -10,19 +16,43 @@ class SharedExpensesScreen extends StatefulWidget {
 
 class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
   bool showOwned = true;
+  List<Map<String, dynamic>> budgets = const [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBudgets();
+  }
+
+  Future<void> _loadBudgets() async {
+    try {
+      final loaded = await ApiService.getBudgets(token: widget.token);
+      if (!mounted) return;
+      setState(() {
+        budgets = loaded;
+        isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final budgets = showOwned
-        ? const [
-            ['Home budget', 'Rs 55,000 of Rs 62,000', 0.89],
-            ['Trip fund', 'Rs 8,300 of Rs 20,000', 0.42],
-            ['Rent pool', 'Rs 6,000 of Rs 10,000', 0.60],
-          ]
-        : const [
-            ['Weekend groceries', 'Rs 4,200 of Rs 8,000', 0.52],
-            ['Apartment utilities', 'Rs 12,600 of Rs 18,000', 0.70],
-          ];
+    final visibleBudgets = budgets
+        .where((budget) => budget['owner'] == showOwned)
+        .toList();
+    final total = visibleBudgets.fold<double>(
+      0,
+      (sum, budget) => sum + (budget['amount'] as num? ?? 0).toDouble(),
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFE8ECFA),
@@ -55,18 +85,29 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SummaryCard(),
+              _SummaryCard(total: total),
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const _ActionTile(icon: Icons.add, label: 'Add expense'),
+                  _ActionTile(
+                    icon: Icons.add,
+                    label: 'Add expense',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddExpenseScreen(token: widget.token),
+                      ),
+                    ).then((_) => _loadBudgets()),
+                  ),
                   const SizedBox(width: 10),
                   _ActionTile(
                     icon: Icons.people_alt_outlined,
                     label: 'Members',
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const MembersScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => MembersScreen(token: widget.token),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -109,13 +150,35 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              ...budgets.map(
-                (budget) => _BudgetTile(
-                  title: budget[0] as String,
-                  amount: budget[1] as String,
-                  progress: budget[2] as double,
+              if (isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (visibleBudgets.isEmpty)
+                const _EmptyBudgets()
+              else
+                ...visibleBudgets.map(
+                  (budget) => _BudgetTile(
+                    title: budget['name']?.toString() ?? 'Budget',
+                    amount: 'Rs 0 of Rs ${budget['amount']}',
+                    progress: 0,
+                    onTap: () {
+                      final screen = showOwned
+                          ? SharedOwnedBudgetProfileScreen(
+                              token: widget.token,
+                              budget: budget,
+                            )
+                          : SharedWithMeScreen(
+                              token: widget.token,
+                              budget: budget,
+                            );
+                      Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (_) => screen),
+                      ).then((changed) {
+                        if (changed == true) _loadBudgets();
+                      });
+                    },
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -125,6 +188,10 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
 }
 
 class _SummaryCard extends StatelessWidget {
+  final double total;
+
+  const _SummaryCard({required this.total});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -137,25 +204,50 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Combined this month', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const Text(
+            'Combined this month',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
           const SizedBox(height: 8),
-          const Text('Rs 69,300', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+          const Text(
+            'Rs 0',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 18),
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: const LinearProgressIndicator(
-              value: 0.75,
+              value: 0,
               minHeight: 10,
               backgroundColor: Color(0xFFDDE3F3),
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF47C20)),
             ),
           ),
           const SizedBox(height: 10),
-          const Text('of Rs 92,000 • 75% used', style: TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(
+            'of Rs ${total.toStringAsFixed(0)} • 0% used',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
         ],
       ),
     );
   }
+}
+
+class _EmptyBudgets extends StatelessWidget {
+  const _EmptyBudgets();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 36),
+    child: Center(
+      child: Text('No budgets yet', style: TextStyle(color: Color(0xFF94A3B8))),
+    ),
+  );
 }
 
 class _ActionTile extends StatelessWidget {
@@ -163,11 +255,7 @@ class _ActionTile extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
 
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _ActionTile({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -211,7 +299,11 @@ class _Tab extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _Tab({required this.label, required this.selected, required this.onTap});
+  const _Tab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +316,16 @@ class _Tab extends StatelessWidget {
             color: selected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(label, style: TextStyle(color: selected ? const Color(0xFF172C57) : const Color(0xFF64748B), fontSize: 12, fontWeight: selected ? FontWeight.bold : FontWeight.w500)),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected
+                  ? const Color(0xFF172C57)
+                  : const Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
         ),
       ),
     );
@@ -235,46 +336,83 @@ class _BudgetTile extends StatelessWidget {
   final String title;
   final String amount;
   final double progress;
+  final VoidCallback onTap;
 
-  const _BudgetTile({required this.title, required this.amount, required this.progress});
+  const _BudgetTile({
+    required this.title,
+    required this.amount,
+    required this.progress,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 46,
-            height: 46,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 4,
-                  backgroundColor: const Color(0xFFDDE3F3),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF47C20)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 46,
+                height: 46,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 4,
+                      backgroundColor: const Color(0xFFDDE3F3),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFF47C20),
+                      ),
+                    ),
+                    Text(
+                      '${(progress * 100).round()}%',
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                Text('${(progress * 100).round()}%', style: const TextStyle(color: Color(0xFF64748B), fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Color(0xFF172C57),
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      amount,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: Color(0xFF172C57), fontSize: 15, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(amount, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
-        ],
+        ),
       ),
     );
   }

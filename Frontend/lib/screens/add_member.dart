@@ -1,52 +1,111 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class AddMemberScreen extends StatefulWidget {
-  const AddMemberScreen({super.key});
+  final String token;
+
+  const AddMemberScreen({super.key, required this.token});
 
   @override
   State<AddMemberScreen> createState() => _AddMemberScreenState();
 }
 
 class _AddMemberScreenState extends State<AddMemberScreen> {
-  final searchController = TextEditingController(text: 'nuwan');
-
-  final contacts = const [
-    _Contact('Nuwan Silva', 'nuwan@gmail.com', Color(0xFF294C88)),
-    _Contact('Nuwan Perera', 'nuwan.perera@gmail.com', Color(0xFF6337A8)),
-    _Contact('Nuwan Jayasinghe', 'nuwan.j@gmail.com', Color(0xFF20A9A5)),
-  ];
+  final searchController = TextEditingController();
+  Timer? _searchDebounce;
+  List<_Contact> _results = const [];
+  bool _isSearching = false;
+  String? _sendingUsername;
 
   @override
   void initState() {
     super.initState();
-    searchController.addListener(_refreshResults);
+    searchController.addListener(_onQueryChanged);
   }
 
   @override
   void dispose() {
     searchController
-      ..removeListener(_refreshResults)
+      ..removeListener(_onQueryChanged)
       ..dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
-  void _refreshResults() => setState(() {});
+  void _onQueryChanged() {
+    _searchDebounce?.cancel();
+    final query = searchController.text.trim();
+    if (query.length < 2) {
+      setState(() {
+        _results = const [];
+        _isSearching = false;
+      });
+      return;
+    }
 
-  void _invite(_Contact contact) {
+    setState(() => _isSearching = true);
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 400),
+      () => _searchUsers(query),
+    );
+  }
+
+  Future<void> _searchUsers(String query) async {
+    try {
+      final users = await ApiService.searchUsers(
+        token: widget.token,
+        username: query,
+      );
+      if (!mounted || query != searchController.text.trim()) return;
+      setState(() {
+        _results = users.map(_Contact.fromJson).toList();
+        _isSearching = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSearching = false);
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _invite(_Contact contact) async {
+    setState(() => _sendingUsername = contact.username);
+    try {
+      await ApiService.sendFriendRequest(
+        token: widget.token,
+        username: contact.username,
+      );
+      if (!mounted) return;
+      _showMessage('Friend request sent to ${contact.name}', isError: false);
+      setState(() {
+        _results = _results
+            .map(
+              (item) => item.username == contact.username
+                  ? item.copyWith(requestStatus: 'PENDING')
+                  : item,
+            )
+            .toList();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _sendingUsername = null);
+    }
+  }
+
+  void _showMessage(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Invite sent to ${contact.name}')),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final query = searchController.text.trim().toLowerCase();
-    final results = contacts
-        .where((contact) =>
-            contact.name.toLowerCase().contains(query) ||
-            contact.email.toLowerCase().contains(query))
-        .toList();
-
     return Scaffold(
       backgroundColor: const Color(0xFFE8ECFA),
       appBar: AppBar(
@@ -74,7 +133,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               TextField(
                 controller: searchController,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF5A78AB)),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF5A78AB),
+                  ),
                   suffixIcon: IconButton(
                     onPressed: searchController.clear,
                     icon: const Icon(Icons.cancel, color: Color(0xFFB7C5E3)),
@@ -92,7 +154,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               ),
               const SizedBox(height: 18),
               Text(
-                '${results.length} results found',
+                _isSearching
+                    ? 'Searching...'
+                    : '${_results.length} results found',
                 style: const TextStyle(
                   color: Color(0xFF7890B8),
                   fontSize: 12,
@@ -100,15 +164,23 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (results.isEmpty)
+              if (_isSearching)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_results.isEmpty)
                 const _EmptyResults()
               else
-                ...results.map(
+                ..._results.map(
                   (contact) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _ContactCard(
                       contact: contact,
                       onInvite: () => _invite(contact),
+                      isSending: _sendingUsername == contact.username,
                     ),
                   ),
                 ),
@@ -121,18 +193,62 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 }
 
 class _Contact {
+  final String userId;
   final String name;
+  final String username;
   final String email;
   final Color avatarColor;
+  final String? requestStatus;
 
-  const _Contact(this.name, this.email, this.avatarColor);
+  const _Contact({
+    required this.userId,
+    required this.name,
+    required this.username,
+    required this.email,
+    required this.avatarColor,
+    this.requestStatus,
+  });
+
+  factory _Contact.fromJson(Map<String, dynamic> json) {
+    final username = json['username']?.toString() ?? '';
+    return _Contact(
+      userId: json['userId']?.toString() ?? '',
+      name: json['name']?.toString() ?? username,
+      username: username,
+      email: json['email']?.toString() ?? '',
+      avatarColor:
+          _avatarColors[username.hashCode.abs() % _avatarColors.length],
+      requestStatus: json['requestStatus']?.toString(),
+    );
+  }
+
+  _Contact copyWith({String? requestStatus}) => _Contact(
+    userId: userId,
+    name: name,
+    username: username,
+    email: email,
+    avatarColor: avatarColor,
+    requestStatus: requestStatus,
+  );
 }
+
+const _avatarColors = [
+  Color(0xFF294C88),
+  Color(0xFF6337A8),
+  Color(0xFF20A9A5),
+  Color(0xFFF47C20),
+];
 
 class _ContactCard extends StatelessWidget {
   final _Contact contact;
   final VoidCallback onInvite;
+  final bool isSending;
 
-  const _ContactCard({required this.contact, required this.onInvite});
+  const _ContactCard({
+    required this.contact,
+    required this.onInvite,
+    required this.isSending,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +285,7 @@ class _ContactCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    contact.email,
+                    '@${contact.username}',
                     style: const TextStyle(
                       color: Color(0xFF83A2D2),
                       fontSize: 11,
@@ -178,20 +294,39 @@ class _ContactCard extends StatelessWidget {
                 ],
               ),
             ),
-            OutlinedButton(
-              onPressed: onInvite,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF315589),
-                side: const BorderSide(color: Color(0xFF315589)),
-                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            if (contact.requestStatus == 'PENDING')
+              const Text(
+                'Pending',
+                style: TextStyle(
+                  color: Color(0xFF7890B8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
+              )
+            else
+              OutlinedButton(
+                onPressed: onInvite,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF315589),
+                  side: const BorderSide(color: Color(0xFF315589)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 8,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: isSending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Invite'),
               ),
-              child: const Text('Invite'),
-            ),
           ],
         ),
       ),
@@ -209,11 +344,18 @@ class _EmptyResults extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 36),
       child: const Column(
         children: [
-          Icon(Icons.person_search_outlined, size: 42, color: Color(0xFF91A6CA)),
+          Icon(
+            Icons.person_search_outlined,
+            size: 42,
+            color: Color(0xFF91A6CA),
+          ),
           SizedBox(height: 10),
           Text(
             'No people found',
-            style: TextStyle(color: Color(0xFF5F78A7), fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Color(0xFF5F78A7),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
