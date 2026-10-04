@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Value;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Value
 @Builder
@@ -15,4 +16,5 @@ public class SettlementResponse {
     boolean fullyPaid;
     boolean currentUser;
     String proofData;
+    List<SettlementPaymentResponse> payments;
 }

@@ -4,6 +4,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.BudgetResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateBudgetRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.SettlementResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.SettlementPaymentResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.GroupEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
@@ -13,7 +14,9 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GroupMemberReposito
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GroupRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetSettlementRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetSettlementPaymentRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetSettlementEntity;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetSettlementPaymentEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +27,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.stream.Stream;
@@ -38,6 +43,7 @@ public class BudgetServiceImpl implements BudgetService {
     private final GroupMemberRepository groupMemberRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final BudgetSettlementRepository settlementRepository;
+    private final BudgetSettlementPaymentRepository paymentRepository;
 
     @Override
     @Transactional
@@ -185,16 +191,28 @@ public class BudgetServiceImpl implements BudgetService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not a member of this budget");
         }
         BigDecimal payable = calculatePayableAmount(budget, payer);
-        if (amount == null || amount.signum() <= 0 || amount.compareTo(payable) > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment must be greater than zero and not exceed your share");
-        }
         BudgetSettlementEntity settlement = settlementRepository
                 .findByBudgetAndPayer(budget, payer)
                 .orElseGet(() -> BudgetSettlementEntity.builder()
                         .budget(budget)
                         .payer(payer)
                         .build());
-        settlement.setAmount(amount);
+        BigDecimal alreadyPaid = settlement.getAmount() == null
+            ? BigDecimal.ZERO
+            : settlement.getAmount();
+        BigDecimal totalPaid = alreadyPaid.add(amount == null ? BigDecimal.ZERO : amount);
+        if (amount == null || amount.signum() <= 0 || totalPaid.compareTo(payable) > 0) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Payment must be greater than zero and total payments must not exceed your share");
+        }
+            paymentRepository.save(BudgetSettlementPaymentEntity.builder()
+                .budget(budget)
+                .payer(payer)
+                .amount(amount)
+                .proofData(proofData)
+                .build());
+        settlement.setAmount(totalPaid);
         settlement.setProofData(proofData);
         settlementRepository.save(settlement);
     }
@@ -208,19 +226,39 @@ public class BudgetServiceImpl implements BudgetService {
                 && !budget.getMemberUserIds().contains(viewer.getUserId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this budget");
         }
-        return settlementRepository.findByBudgetOrderByCreatedAtAsc(budget).stream()
-                .map(settlement -> {
-                    BigDecimal payable = calculatePayableAmount(budget, settlement.getPayer());
-                    BigDecimal paid = settlement.getAmount() == null ? BigDecimal.ZERO : settlement.getAmount();
+        Map<String, BudgetSettlementEntity> settlementsByPayer = new HashMap<>();
+        settlementRepository.findByBudgetOrderByCreatedAtAsc(budget)
+            .forEach(settlement -> settlementsByPayer.put(
+                settlement.getPayer().getUserId(), settlement));
+
+        return budget.getMemberUserIds().stream()
+            .map(userRepository::findByUserId)
+            .flatMap(java.util.Optional::stream)
+            .map(payer -> {
+                BudgetSettlementEntity settlement = settlementsByPayer.get(payer.getUserId());
+                List<SettlementPaymentResponse> payments = paymentRepository
+                    .findByBudgetAndPayerOrderByCreatedAtAsc(budget, payer)
+                    .stream()
+                    .map(payment -> SettlementPaymentResponse.builder()
+                        .amount(payment.getAmount())
+                        .proofData(payment.getProofData())
+                        .createdAt(payment.getCreatedAt())
+                        .build())
+                    .toList();
+                BigDecimal payable = calculatePayableAmount(budget, payer);
+                BigDecimal paid = settlement == null || settlement.getAmount() == null
+                    ? BigDecimal.ZERO
+                    : settlement.getAmount();
                     BigDecimal remaining = payable.subtract(paid).max(BigDecimal.ZERO);
                     return SettlementResponse.builder()
-                            .payerUserId(settlement.getPayer().getUserId())
-                            .payerName(settlement.getPayer().getName())
+                    .payerUserId(payer.getUserId())
+                    .payerName(payer.getName())
                             .amount(paid)
                             .remainingAmount(remaining)
                             .fullyPaid(remaining.signum() == 0)
-                            .currentUser(settlement.getPayer().getId().equals(viewer.getId()))
-                            .proofData(settlement.getProofData())
+                    .currentUser(payer.getId().equals(viewer.getId()))
+                    .proofData(settlement == null ? null : settlement.getProofData())
+                            .payments(payments)
                             .build();
                 })
                 .toList();

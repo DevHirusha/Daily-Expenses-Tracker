@@ -34,6 +34,23 @@ class _SharedOwnedBudgetProfileScreenState
 
   double get _amount => (widget.budget['amount'] as num?)?.toDouble() ?? 0;
 
+  double get _ownerShareAmount =>
+      _members.isEmpty ? 0 : _amount / (_members.length + 1);
+
+  double _value(Map<String, dynamic> item, String key) =>
+      (item[key] as num?)?.toDouble() ?? 0;
+
+  double get _settledAmount => _settlements.fold<double>(
+    0,
+    (total, settlement) => total + _value(settlement, 'amount'),
+  );
+
+  double get _remainingAmount {
+    final remainingBudget = _amount - _settledAmount;
+    final memberRemaining = remainingBudget - _ownerShareAmount;
+    return memberRemaining < 0 ? 0 : memberRemaining;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -310,6 +327,59 @@ class _SharedOwnedBudgetProfileScreenState
     );
   }
 
+  void _showSettlementHistory(Map<String, dynamic> settlement) {
+    final payments = (settlement['payments'] as List?)
+            ?.whereType<Map>()
+            .map((payment) => Map<String, dynamic>.from(payment))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+    if (payments.length < 2) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${settlement['payerName'] ?? 'Member'} settlements'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: payments.length,
+            separatorBuilder: (_, index) => const Divider(height: 1),
+            itemBuilder: (_, index) {
+              final payment = payments[index];
+              final proof = payment['proofData']?.toString() ?? '';
+              final date = payment['createdAt']?.toString() ?? '';
+              final amount = _value(payment, 'amount');
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Payment ${index + 1}: Rs ${amount.toStringAsFixed(2)}'),
+                subtitle: date.isEmpty ? null : Text(date),
+                trailing: proof.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          _showFullProof(proof);
+                        },
+                        icon: const Icon(
+                          Icons.receipt_long_outlined,
+                          color: Color(0xFFF47C20),
+                        ),
+                        tooltip: 'View payment proof',
+                      ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -349,7 +419,12 @@ class _SharedOwnedBudgetProfileScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SpendCard(amount: _amount),
+              _SpendCard(
+                amount: _amount,
+                ownerShareAmount: _ownerShareAmount,
+                settledAmount: _settledAmount,
+                remainingAmount: _remainingAmount,
+              ),
               const SizedBox(height: 18),
               _ProofCard(
                 proofData: widget.budget['proofData']?.toString(),
@@ -409,23 +484,33 @@ class _SharedOwnedBudgetProfileScreenState
                   ),
                 ),
               const SizedBox(height: 18),
-              _SettlementSection(
-                settlements: _settlements,
-                onOpenProof: _showFullProof,
-              ),
-              const SizedBox(height: 18),
               _SettlementToggle(
                 showSettled: _showSettled,
                 onChanged: (value) => setState(() => _showSettled = value),
               ),
               const SizedBox(height: 12),
-              _SettlementAmount(showSettled: _showSettled, amount: _amount),
+              _SettlementAmount(
+                showSettled: _showSettled,
+                amount: _showSettled ? _settledAmount : _remainingAmount,
+              ),
+              const SizedBox(height: 12),
+              if (_showSettled)
+                _SettlementSection(
+                  settlements: _settlements
+                      .where((settlement) => _value(settlement, 'amount') > 0)
+                      .toList(),
+                  onOpenProof: _showFullProof,
+                  onViewAll: _showSettlementHistory,
+                ),
               if (!_showSettled && !_isLoading) ...[
                 const SizedBox(height: 12),
-                _EqualShareList(
+                _MemberShareList(
                   members: _members,
                   amount: _amount,
+                  ownerName: widget.budget['ownerName']?.toString() ?? 'You',
+                  ownerShareAmount: _ownerShareAmount,
                   percentageOverrides: _percentageOverrides,
+                  settlements: _settlements,
                 ),
               ],
               const SizedBox(height: 24),
@@ -450,10 +535,12 @@ class _SharedOwnedBudgetProfileScreenState
 class _SettlementSection extends StatelessWidget {
   final List<Map<String, dynamic>> settlements;
   final ValueChanged<String> onOpenProof;
+  final ValueChanged<Map<String, dynamic>> onViewAll;
 
   const _SettlementSection({
     required this.settlements,
     required this.onOpenProof,
+    required this.onViewAll,
   });
 
   @override
@@ -477,8 +564,11 @@ class _SettlementSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          ...settlements.map(
-            (settlement) => ListTile(
+          ...settlements.map((settlement) {
+            final payments = settlement['payments'];
+            final hasMultiplePayments = payments is List && payments.length > 1;
+            final proof = settlement['proofData']?.toString() ?? '';
+            return ListTile(
               contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(
                 backgroundColor: const Color(0xFFFFE1C7),
@@ -493,19 +583,32 @@ class _SettlementSection extends StatelessWidget {
                     ? 'Paid in full • Rs ${settlement['amount']}'
                     : 'Paid Rs ${settlement['amount']} • Remaining Rs ${settlement['remainingAmount']}',
               ),
-              trailing: settlement['proofData']?.toString().isNotEmpty == true
-                  ? IconButton(
-                      onPressed: () =>
-                          onOpenProof(settlement['proofData'].toString()),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasMultiplePayments)
+                    TextButton(
+                      onPressed: () => onViewAll(settlement),
+                      child: const Text('View all'),
+                    ),
+                  if (proof.isNotEmpty)
+                    IconButton(
+                      onPressed: () => onOpenProof(proof),
                       icon: const Icon(
                         Icons.receipt_long_outlined,
                         color: Color(0xFFF47C20),
                       ),
-                      tooltip: 'View settlement proof',
+                      tooltip: 'View latest settlement proof',
                     )
-                  : const Icon(Icons.hourglass_empty, color: Color(0xFF94A3B8)),
-            ),
-          ),
+                  else
+                    const Icon(
+                      Icons.hourglass_empty,
+                      color: Color(0xFF94A3B8),
+                    ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -514,52 +617,95 @@ class _SettlementSection extends StatelessWidget {
 
 class _SpendCard extends StatelessWidget {
   final double amount;
+  final double ownerShareAmount;
+  final double settledAmount;
+  final double remainingAmount;
 
-  const _SpendCard({required this.amount});
+  const _SpendCard({
+    required this.amount,
+    required this.ownerShareAmount,
+    required this.settledAmount,
+    required this.remainingAmount,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Spent', style: TextStyle(color: Color(0xFF64748B))),
-            Text(
-              'Rs 0',
-              style: TextStyle(
-                color: Color(0xFF172C57),
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+  Widget build(BuildContext context) {
+    final ownerRatio = amount <= 0
+      ? 0.0
+      : (ownerShareAmount / amount).clamp(0.0, 1.0).toDouble();
+    final settledRatio = amount <= 0
+      ? 0.0
+      : (settledAmount / amount).clamp(0.0, 1.0 - ownerRatio).toDouble();
+    final remainingRatio = (1 - ownerRatio - settledRatio).clamp(0.0, 1.0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Spent', style: TextStyle(color: Color(0xFF64748B))),
+              Text(
+                'Rs ${settledAmount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  color: Color(0xFF172C57),
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 9,
+              child: LayoutBuilder(
+                builder: (context, constraints) => Stack(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: constraints.maxWidth * ownerRatio,
+                        child: Container(color: const Color(0xFF2563EB)),
+                      ),
+                    ),
+                    Positioned(
+                      left: constraints.maxWidth * ownerRatio,
+                      child: SizedBox(
+                        width: constraints.maxWidth * settledRatio,
+                        height: constraints.maxHeight,
+                        child: Container(color: const Color(0xFFF47C20)),
+                      ),
+                    ),
+                    Positioned(
+                      left: constraints.maxWidth * (ownerRatio + settledRatio),
+                      child: SizedBox(
+                        width: constraints.maxWidth * remainingRatio,
+                        height: constraints.maxHeight,
+                        child: Container(color: const Color(0xFFD9DFF2)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: const LinearProgressIndicator(
-            value: 0,
-            minHeight: 9,
-            backgroundColor: Color(0xFFD9DFF2),
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF47C20)),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Rs ${amount.toStringAsFixed(0)} remaining',
-          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(height: 10),
+          Text(
+            'Rs ${remainingAmount.toStringAsFixed(0)} remaining',
+            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Segment extends StatelessWidget {
@@ -636,31 +782,44 @@ class _SettlementAmount extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          showSettled ? 'Settled by members' : 'Remaining for members',
+          showSettled
+              ? 'Settled by members'
+              : amount <= 0
+              ? 'All paid'
+              : 'Remaining for members',
           style: const TextStyle(color: Color(0xFF64748B)),
         ),
-        Text(
-          'Rs ${showSettled ? '0' : amount.toStringAsFixed(0)}',
-          style: const TextStyle(
-            color: Color(0xFF172C57),
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+        if (!showSettled && amount <= 0)
+          const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 22)
+        else
+          Text(
+            'Rs ${amount.toStringAsFixed(0)}',
+            style: const TextStyle(
+              color: Color(0xFF172C57),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
       ],
     ),
   );
 }
 
-class _EqualShareList extends StatelessWidget {
+class _MemberShareList extends StatelessWidget {
   final List<Map<String, dynamic>> members;
   final double amount;
+  final String ownerName;
+  final double ownerShareAmount;
   final Map<String, double> percentageOverrides;
+  final List<Map<String, dynamic>> settlements;
 
-  const _EqualShareList({
+  const _MemberShareList({
     required this.members,
     required this.amount,
+    required this.ownerName,
+    required this.ownerShareAmount,
     required this.percentageOverrides,
+    required this.settlements,
   });
 
   @override
@@ -676,7 +835,10 @@ class _EqualShareList extends StatelessWidget {
       (sum, percentage) => sum + percentage,
     );
     final remainingPercentage = (100 - fixedTotal).clamp(0, 100).toDouble();
-    final flexibleMembers = members.where(
+    final visibleMembers = members
+      .where((member) => member['name']?.toString() != ownerName)
+      .toList();
+    final flexibleMembers = visibleMembers.where(
       (member) =>
           !percentageOverrides.containsKey(member['userId']?.toString()),
     );
@@ -701,10 +863,25 @@ class _EqualShareList extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          ...members.map((member) {
+          _OwnerShareRow(
+            name: ownerName,
+            percentage: amount <= 0 ? 0 : ownerShareAmount / amount * 100,
+            amount: ownerShareAmount,
+          ),
+          ...visibleMembers.map((member) {
             final userId = member['userId']?.toString() ?? '';
             final percentage = percentageOverrides[userId] ?? equalPercentage;
             final share = amount * percentage / 100;
+            final settlement = settlements.cast<Map<String, dynamic>?>().firstWhere(
+              (item) => item?['payerUserId']?.toString() == userId,
+              orElse: () => null,
+            );
+            final paid = settlement == null
+                ? 0
+                : (settlement['amount'] as num?)?.toDouble() ?? 0;
+            final remaining = settlement == null
+                ? share
+                : (settlement['remainingAmount'] as num?)?.toDouble() ?? share;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
@@ -728,25 +905,63 @@ class _EqualShareList extends StatelessWidget {
                       style: const TextStyle(color: Color(0xFF172C57)),
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${percentage.toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          color: Color(0xFFF47C20),
-                          fontSize: 11,
+                  remaining <= 0
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${percentage.toStringAsFixed(1)}%  •  Share Rs ${share.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Color(0xFFF47C20),
+                                fontSize: 11,
+                              ),
+                            ),
+                            const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Color(0xFF16A34A),
+                                  size: 18,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Settled',
+                                  style: TextStyle(
+                                    color: Color(0xFF16A34A),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${percentage.toStringAsFixed(1)}%  •  Share Rs ${share.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Color(0xFFF47C20),
+                                fontSize: 11,
+                              ),
+                            ),
+                            Text(
+                              'Paid Rs ${paid.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              'Remain Rs ${remaining.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Color(0xFF172C57),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      Text(
-                        'Rs ${share.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: Color(0xFF172C57),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             );
@@ -755,6 +970,60 @@ class _EqualShareList extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OwnerShareRow extends StatelessWidget {
+  final String name;
+  final double percentage;
+  final double amount;
+
+  const _OwnerShareRow({
+    required this.name,
+    required this.percentage,
+    required this.amount,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        const CircleAvatar(
+          radius: 15,
+          backgroundColor: Color(0xFFFFE0C2),
+          child: Icon(Icons.person, color: Color(0xFFC2410C), size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            '$name (You)',
+            style: const TextStyle(color: Color(0xFF172C57)),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '${percentage.toStringAsFixed(1)}%',
+              style: const TextStyle(
+                color: Color(0xFFF47C20),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'Share Rs ${amount.toStringAsFixed(2)}',
+              style: const TextStyle(
+                color: Color(0xFFF47C20),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class _ProofCard extends StatelessWidget {
