@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
       ? const String.fromEnvironment('API_BASE_URL')
-      : kIsWeb || defaultTargetPlatform != TargetPlatform.android
-      ? 'http://localhost:3030/api/v1.0'
-      : 'http://10.0.2.2:3030/api/v1.0';
+        : 'https://daily-expenses-tracker-g3l0.onrender.com/api/v1.0';
+
+      // Local development URLs:
+      // Web/desktop: http://localhost:3030/api/v1.0
+      // Android emulator: http://10.0.2.2:3030/api/v1.0
 
   // ---------- REGISTER ----------
   static Future<Map<String, dynamic>> register({
