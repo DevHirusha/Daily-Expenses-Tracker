@@ -129,6 +129,31 @@ class ApiService {
     return Map<String, dynamic>.from(result as Map);
   }
 
+  static Future<Map<String, dynamic>> joinGroup({
+    required String token,
+    required String joinCode,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/groups/join'),
+      token: token,
+      payload: {'joinCode': joinCode},
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> resetGroupJoinCode({
+    required String token,
+    required int groupId,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/groups/$groupId/join-code'),
+      token: token,
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
   static Future<List<Map<String, dynamic>>> getGroupMembers({
     required String token,
     required int groupId,

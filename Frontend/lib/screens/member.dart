@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import 'add_member.dart';
 import 'crate_group.dart';
@@ -17,6 +18,7 @@ class MembersScreen extends StatefulWidget {
 class _MembersScreenState extends State<MembersScreen> {
   List<_Group> groups = const [];
   bool isLoading = true;
+  bool isJoining = false;
 
   @override
   void initState() {
@@ -49,6 +51,99 @@ class _MembersScreenState extends State<MembersScreen> {
       MaterialPageRoute(builder: (_) => CreateGroupScreen(token: widget.token)),
     );
     if (created == true) _loadGroups();
+  }
+
+  Future<void> _openJoinGroup() async {
+    final controller = TextEditingController();
+    final joinCode = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Join a group'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: 'Join code',
+            hintText: 'Enter or paste the code',
+            suffixIcon: IconButton(
+              tooltip: 'Paste join code',
+              icon: const Icon(Icons.content_paste),
+              onPressed: () async {
+                final data = await Clipboard.getData(Clipboard.kTextPlain);
+                if (data?.text != null) controller.text = data!.text!.trim();
+              },
+            ),
+          ),
+          onSubmitted: (_) => Navigator.pop(
+            dialogContext,
+            controller.text.trim().toUpperCase(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final code = controller.text.trim().toUpperCase();
+              if (code.isNotEmpty) Navigator.pop(dialogContext, code);
+            },
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (joinCode == null || joinCode.isEmpty || !mounted) return;
+
+    setState(() => isJoining = true);
+    try {
+      final group = await ApiService.joinGroup(
+        token: widget.token,
+        joinCode: joinCode,
+      );
+      await _loadGroups();
+      if (mounted) {
+        setState(() => isJoining = false);
+        await _showJoinedDialog(group['name']?.toString() ?? 'the group');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => isJoining = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showJoinedDialog(String groupName) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Text('🎉', style: TextStyle(fontSize: 26)),
+            SizedBox(width: 10),
+            Expanded(child: Text('Welcome!')),
+          ],
+        ),
+        content: Text('You joined $groupName successfully.'),
+        actions: [
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.groups),
+            label: const Text('Open groups'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -94,12 +189,13 @@ class _MembersScreenState extends State<MembersScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: _ActionButton(
-                      label: 'Join',
+                      label: 'Join Group',
                       icon: Icons.people_alt_outlined,
                       backgroundColor: Color(0xFFF47C20),
                       foregroundColor: Colors.white,
+                      onTap: isJoining ? null : _openJoinGroup,
                     ),
                   ),
                 ],

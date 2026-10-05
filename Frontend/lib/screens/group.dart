@@ -26,6 +26,15 @@ class GroupDetailsScreen extends StatefulWidget {
 }
 
 class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
+  late String _joinCode;
+  bool _isResettingCode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _joinCode = widget.joinCode;
+  }
+
   Future<void> _showMembers() async {
     await showDialog<void>(
       context: context,
@@ -71,9 +80,57 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
 
   void _copyLink() {
     Clipboard.setData(
-      ClipboardData(text: 'daily-expenses://group/${widget.joinCode}'),
+      ClipboardData(text: 'daily-expenses://group/$_joinCode'),
     );
     _showMessage('Group link copied', isError: false);
+  }
+
+  void _copyCode() {
+    Clipboard.setData(ClipboardData(text: _joinCode));
+    _showMessage('Join code copied', isError: false);
+  }
+
+  Future<void> _resetJoinCode() async {
+    final shouldReset = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset join code?'),
+        content: const Text(
+          'The current QR code and link will stop working for new members.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (shouldReset != true || !mounted) return;
+
+    setState(() => _isResettingCode = true);
+    try {
+      final group = await ApiService.resetGroupJoinCode(
+        token: widget.token,
+        groupId: widget.groupId,
+      );
+      if (mounted) {
+        setState(() {
+          _joinCode = group['joinCode']?.toString() ?? _joinCode;
+          _isResettingCode = false;
+        });
+        _showMessage('Join code reset', isError: false);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isResettingCode = false);
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
+    }
   }
 
   void _showMessage(String message, {bool isError = true}) {
@@ -113,7 +170,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
             children: [
               _GroupHeader(name: widget.name, memberCount: widget.memberCount),
               const SizedBox(height: 12),
-              _InviteCard(joinCode: widget.joinCode, onCopy: _copyLink),
+              _InviteCard(
+                joinCode: _joinCode,
+                onCopyCode: _copyCode,
+                onCopy: _copyLink,
+                canReset: widget.isOwner,
+                isResetting: _isResettingCode,
+                onReset: _resetJoinCode,
+              ),
               const SizedBox(height: 12),
               _SettingsRow(
                 icon: Icons.people_alt_outlined,
@@ -428,9 +492,20 @@ class _GroupHeader extends StatelessWidget {
 
 class _InviteCard extends StatelessWidget {
   final String joinCode;
+  final VoidCallback onCopyCode;
   final VoidCallback onCopy;
+  final bool canReset;
+  final bool isResetting;
+  final VoidCallback onReset;
 
-  const _InviteCard({required this.joinCode, required this.onCopy});
+  const _InviteCard({
+    required this.joinCode,
+    required this.onCopyCode,
+    required this.onCopy,
+    required this.canReset,
+    required this.isResetting,
+    required this.onReset,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -448,22 +523,28 @@ class _InviteCard extends StatelessWidget {
             style: TextStyle(color: Color(0xFF7895C0), fontSize: 12),
           ),
           const SizedBox(height: 3),
-          Text(
-            joinCode,
-            style: const TextStyle(
-              color: Color(0xFF172C57),
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                joinCode,
+                style: const TextStyle(
+                  color: Color(0xFF172C57),
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+              IconButton(
+                onPressed: onCopyCode,
+                icon: const Icon(Icons.copy_outlined, size: 18),
+                color: const Color(0xFF31558F),
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Copy join code',
+              ),
+            ],
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: onCopy,
-            icon: const Icon(Icons.copy_outlined, size: 16),
-            label: const Text('Copy link'),
-          ),
-          const SizedBox(height: 7),
           const Text(
             'Scan to join',
             style: TextStyle(color: Color(0xFF7895C0), fontSize: 12),
@@ -481,6 +562,26 @@ class _InviteCard extends StatelessWidget {
               backgroundColor: Colors.white,
             ),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onCopy,
+            icon: const Icon(Icons.copy_outlined, size: 16),
+            label: const Text('Copy link'),
+          ),
+          if (canReset) ...[
+            const SizedBox(height: 2),
+            TextButton.icon(
+              onPressed: isResetting ? null : onReset,
+              icon: isResetting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh, size: 16),
+              label: const Text('Reset code'),
+            ),
+          ],
         ],
       ),
     );

@@ -3,6 +3,7 @@ import 'member.dart';
 import 'add_expense.dart';
 import 'shared_owned_budget_profile.dart';
 import 'shared_with_me.dart';
+import 'shared_budget_summary.dart';
 import '../services/api_service.dart';
 
 class SharedExpensesScreen extends StatefulWidget {
@@ -18,6 +19,9 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
   bool showOwned = true;
   List<Map<String, dynamic>> budgets = const [];
   bool isLoading = true;
+  double ownedTotal = 0;
+  double sharedTotal = 0;
+  double actualSharedTotal = 0;
 
   @override
   void initState() {
@@ -28,9 +32,40 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
   Future<void> _loadBudgets() async {
     try {
       final loaded = await ApiService.getBudgets(token: widget.token);
+      final owned = loaded.where((budget) => budget['owner'] == true).toList();
+      final ownedAmount = owned.fold<double>(
+        0,
+        (sum, budget) => sum + ((budget['amount'] as num?)?.toDouble() ?? 0),
+      );
+      final sharedAmount = loaded
+          .where((budget) => budget['owner'] != true)
+          .fold<double>(
+            0,
+            (sum, budget) =>
+                sum + ((budget['payableAmount'] as num?)?.toDouble() ?? 0),
+          );
+      final settlementLists = await Future.wait(
+        owned.map(
+          (budget) => ApiService.getBudgetSettlements(
+            token: widget.token,
+            budgetId: (budget['id'] as num).toInt(),
+          ),
+        ),
+      );
+      final actualSharedAmount = settlementLists
+          .expand((settlements) => settlements)
+          .where((settlement) => settlement['currentUser'] != true)
+          .fold<double>(
+            0,
+            (sum, settlement) =>
+                sum + ((settlement['amount'] as num?)?.toDouble() ?? 0),
+          );
       if (!mounted) return;
       setState(() {
         budgets = loaded;
+        ownedTotal = ownedAmount;
+        sharedTotal = sharedAmount;
+        actualSharedTotal = actualSharedAmount;
         isLoading = false;
       });
     } catch (error) {
@@ -85,7 +120,12 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SummaryCard(total: total),
+              _SummaryCard(
+                total: total,
+                ownedTotal: ownedTotal,
+                sharedTotal: sharedTotal,
+                actualSharedTotal: actualSharedTotal,
+              ),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -111,9 +151,17 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const _ActionTile(
+                  _ActionTile(
                     icon: Icons.bar_chart_rounded,
                     label: 'Summary',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SharedBudgetSummaryScreen(
+                          token: widget.token,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -189,8 +237,16 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
 
 class _SummaryCard extends StatelessWidget {
   final double total;
+  final double ownedTotal;
+  final double sharedTotal;
+  final double actualSharedTotal;
 
-  const _SummaryCard({required this.total});
+  const _SummaryCard({
+    required this.total,
+    required this.ownedTotal,
+    required this.sharedTotal,
+    required this.actualSharedTotal,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -209,8 +265,8 @@ class _SummaryCard extends StatelessWidget {
             style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Rs 0',
+          Text(
+            'Rs ${total.toStringAsFixed(0)}',
             style: TextStyle(
               color: Colors.white,
               fontSize: 32,
@@ -218,21 +274,72 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: const LinearProgressIndicator(
-              value: 0,
-              minHeight: 10,
-              backgroundColor: Color(0xFFDDE3F3),
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF47C20)),
-            ),
+          _SummaryProgressBar(
+            ownedTotal: ownedTotal,
+            sharedTotal: sharedTotal,
+            actualSharedTotal: actualSharedTotal,
           ),
           const SizedBox(height: 10),
           Text(
-            'of Rs ${total.toStringAsFixed(0)} • 0% used',
+            'Owned Rs ${ownedTotal.toStringAsFixed(0)} • Shared with me Rs ${sharedTotal.toStringAsFixed(0)}',
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SummaryProgressBar extends StatelessWidget {
+  final double ownedTotal;
+  final double sharedTotal;
+  final double actualSharedTotal;
+
+  const _SummaryProgressBar({
+    required this.ownedTotal,
+    required this.sharedTotal,
+    required this.actualSharedTotal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final combined = ownedTotal + sharedTotal;
+    if (combined == 0) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(height: 12, color: const Color(0xFFDDE3F3)),
+      );
+    }
+    final ownedWidth = combined == 0 ? 0.0 : ownedTotal / combined;
+    final sharedWidth = combined == 0 ? 0.0 : sharedTotal / combined;
+    final actualWidth = ownedTotal == 0
+        ? 0.0
+        : (actualSharedTotal / ownedTotal).clamp(0.0, 1.0);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: SizedBox(
+        height: 12,
+        child: Row(
+          children: [
+            Flexible(
+              flex: (ownedWidth * 1000).round(),
+              child: Stack(
+                children: [
+                  Container(color: const Color(0xFFB83A2F)),
+                  FractionallySizedBox(
+                    widthFactor: actualWidth,
+                    child: Container(color: const Color(0xFF7D211D)),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              flex: (sharedWidth * 1000).round(),
+              child: Container(color: const Color(0xFFF47C20)),
+            ),
+          ],
+        ),
       ),
     );
   }

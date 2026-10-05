@@ -10,6 +10,10 @@ public interface GroupService {
 
     GroupResponse createGroup(String email, CreateGroupRequest request);
 
+    GroupResponse joinGroup(String email, String joinCode);
+
+    GroupResponse resetJoinCode(String email, Long groupId);
+
     List<GroupResponse> getGroups(String email);
 
     List<GroupMemberResponse> getMembers(String email, Long groupId);

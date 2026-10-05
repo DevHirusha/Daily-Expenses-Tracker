@@ -68,6 +68,36 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
+    public GroupResponse joinGroup(String email, String joinCode) {
+        UserEntity user = getUser(email);
+        String normalizedCode = joinCode == null ? "" : joinCode.trim().toUpperCase();
+        GroupEntity group = groupRepository.findByJoinCode(normalizedCode)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Invalid join code"
+                ));
+        if (groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "You are already a member of this group"
+            );
+        }
+        saveMember(group, user, "MEMBER");
+        return toResponse(group, user);
+    }
+
+    @Override
+    public GroupResponse resetJoinCode(String email, Long groupId) {
+        UserEntity owner = getUser(email);
+        GroupEntity group = getGroupForMember(groupId, owner);
+        if (!group.getOwner().getId().equals(owner.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Only the group owner can reset the join code"
+            );
+        }
+        group.setJoinCode(generateJoinCode());
+        return toResponse(groupRepository.save(group), owner);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<GroupResponse> getGroups(String email) {
         UserEntity user = getUser(email);

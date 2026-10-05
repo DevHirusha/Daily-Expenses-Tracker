@@ -5,6 +5,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.GroupService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.CurrentSecurityContext;
@@ -25,6 +26,22 @@ public class GroupController {
             @CurrentSecurityContext(expression = "authentication?.name") String email
     ) {
         return groupService.createGroup(email, request);
+    }
+
+    @PostMapping("/join")
+    public GroupResponse joinGroup(
+            @Valid @RequestBody JoinGroupRequest request,
+            @CurrentSecurityContext(expression = "authentication?.name") String email
+    ) {
+        return groupService.joinGroup(email, request.joinCode());
+    }
+
+    @PutMapping("/{groupId}/join-code")
+    public GroupResponse resetJoinCode(
+            @PathVariable Long groupId,
+            @CurrentSecurityContext(expression = "authentication?.name") String email
+    ) {
+        return groupService.resetJoinCode(email, groupId);
     }
 
     @GetMapping
@@ -71,3 +88,5 @@ public class GroupController {
         return ResponseEntity.noContent().build();
     }
 }
+
+record JoinGroupRequest(@NotBlank String joinCode) {}
