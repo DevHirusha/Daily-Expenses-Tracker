@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
-import 'home_screen.dart';
+import 'app_shell.dart';
 import '../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -65,11 +65,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       _showSnack('Login successful', Colors.green);
 
-      // Navigate to Home and pass the session data
+      // Navigate to the authenticated shell and pass the session data.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
+          builder: (_) => AppShell(
             email: returnedEmail,
             token: token,
           ),

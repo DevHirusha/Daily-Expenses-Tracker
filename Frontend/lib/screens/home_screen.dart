@@ -7,8 +7,9 @@ import 'login_screen.dart';
 class HomeScreen extends StatefulWidget {
   final String email;
   final String token;
+  final ValueChanged<int>? onNavigate;
 
-  const HomeScreen({super.key, required this.email, required this.token});
+  const HomeScreen({super.key, required this.email, required this.token, this.onNavigate});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -107,12 +108,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _QuickAction(
                         icon: Icons.people_alt_outlined,
                         label: 'Shared budgets',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SharedExpensesScreen(token: widget.token),
-                          ),
-                        ),
+                        onTap: widget.onNavigate == null
+                            ? () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SharedExpensesScreen(token: widget.token),
+                                ),
+                              )
+                            : () => widget.onNavigate!(2),
                       ),
                     ),
                     const SizedBox(width: 7),
