@@ -33,7 +33,7 @@ class _AppShellState extends State<AppShell> {
         onNavigate: _select,
       ),
       BudgetDashboardScreen(token: widget.token),
-      SharedExpensesScreen(token: widget.token),
+      SharedExpensesScreen(token: widget.token, onNavigate: _select),
       const FindGigsScreen(),
       SettingsScreen(email: widget.email),
     ];

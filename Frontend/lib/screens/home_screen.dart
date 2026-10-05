@@ -73,6 +73,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: _openAddExpense,
         backgroundColor: const Color(0xFFF47C20),
         foregroundColor: Colors.white,
+        shape: const CircleBorder(),
+        elevation: 8,
         tooltip: 'Add expense',
         child: const Icon(Icons.add),
       ),
@@ -81,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onRefresh: _loadBudgets,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(10, 12, 10, 88),
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 92),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -94,35 +96,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 const _TodayCard(),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickAction(
-                        icon: Icons.add,
-                        label: 'Quick expense',
-                        onTap: _openAddExpense,
+                Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1E5),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.add,
+                          label: 'Quick expense',
+                          onTap: _openAddExpense,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _QuickAction(
-                        icon: Icons.people_alt_outlined,
-                        label: 'Shared budgets',
-                        onTap: widget.onNavigate == null
-                            ? () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => SharedExpensesScreen(token: widget.token),
-                                ),
-                              )
-                            : () => widget.onNavigate!(2),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.people_alt_outlined,
+                          label: 'Shared budgets',
+                          onTap: widget.onNavigate == null
+                              ? () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => SharedExpensesScreen(token: widget.token),
+                                  ),
+                                )
+                              : () => widget.onNavigate!(2),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 7),
-                    const Expanded(
-                      child: _QuickAction(icon: Icons.bar_chart_rounded, label: 'Find gigs'),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: _QuickAction(icon: Icons.bar_chart_rounded, label: 'Find gigs'),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const _CategoryCard(),
@@ -148,25 +157,29 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.max,
       children: [
         Expanded(
-          child: Text(
-            'Good morning, $name',
-            style: const TextStyle(
-              color: Color(0xFF172C57),
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              'Good morning, $name',
+              style: const TextStyle(
+                color: Color(0xFF172C57),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
         IconButton(
           onPressed: onLogout,
-          icon: const Icon(Icons.notifications_none, color: Color(0xFF172C57), size: 19),
+          icon: const Icon(Icons.notifications_none, color: Color(0xFF172C57), size: 21),
           tooltip: 'Notifications',
         ),
         IconButton(
           onPressed: onLogout,
-          icon: const Icon(Icons.logout, color: Color(0xFF172C57), size: 18),
+          icon: const Icon(Icons.logout, color: Color(0xFF172C57), size: 19),
           tooltip: 'Logout',
         ),
       ],
@@ -184,34 +197,41 @@ class _BudgetHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
       decoration: BoxDecoration(
         color: const Color(0xFF1D3D73),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF172C57).withOpacity(.18),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Family budget · This month', style: TextStyle(color: Colors.white70, fontSize: 9)),
-          const SizedBox(height: 4),
+          const Text('Family budget · This month', style: TextStyle(color: Colors.white70, fontSize: 11)),
+          const SizedBox(height: 6),
           Text(
             isLoading ? 'Loading...' : 'Rs ${total.toStringAsFixed(0)} left',
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: const LinearProgressIndicator(
               value: 0,
-              minHeight: 4,
+              minHeight: 7,
               backgroundColor: Color(0xFFDDE3F3),
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF47C20)),
             ),
           ),
-          const SizedBox(height: 6),
-          Text('Rs 0 used of Rs ${total.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70, fontSize: 9)),
-          const SizedBox(height: 2),
-          const Text('This month', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text('Rs 0 used of Rs ${total.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          const SizedBox(height: 3),
+          const Text('This month', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -225,14 +245,20 @@ class _TodayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(11)),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF172C57).withOpacity(.06), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Today's spending", style: TextStyle(color: Color(0xFF7890B8), fontSize: 8)),
-          SizedBox(height: 3),
-          Text('Rs 0', style: TextStyle(color: Color(0xFF172C57), fontSize: 15, fontWeight: FontWeight.bold)),
+          Text("Today's spending", style: TextStyle(color: Color(0xFF7890B8), fontSize: 10)),
+          SizedBox(height: 4),
+          Text('Rs 0', style: TextStyle(color: Color(0xFF172C57), fontSize: 18, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -249,22 +275,22 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFFFF1E5),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(11),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(11),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 3),
+          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 4),
           child: Column(
             children: [
               CircleAvatar(
-                radius: 10,
+                radius: 14,
                 backgroundColor: const Color(0xFFFFD7B5),
-                child: Icon(icon, color: const Color(0xFFF47C20), size: 13),
+                child: Icon(icon, color: const Color(0xFFF47C20), size: 17),
               ),
-              const SizedBox(height: 5),
-              Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF172C57), fontSize: 8, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 7),
+              Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF172C57), fontSize: 10, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -284,9 +310,9 @@ class _CategoryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Container(height: 5, color: const Color(0xFFF47C20))),
-              Expanded(child: Container(height: 5, color: const Color(0xFF172C57))),
-              Expanded(child: Container(height: 5, color: const Color(0xFF64748B))),
+              Expanded(child: Container(height: 7, color: const Color(0xFFF47C20))),
+              Expanded(child: Container(height: 7, color: const Color(0xFF172C57))),
+              Expanded(child: Container(height: 7, color: const Color(0xFF64748B))),
             ],
           ),
           const SizedBox(height: 5),
@@ -309,10 +335,10 @@ class _CategoryLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-          Expanded(child: Text(name, style: const TextStyle(color: Color(0xFF172C57), fontSize: 8))),
-          Text(percent, style: const TextStyle(color: Color(0xFF172C57), fontSize: 8, fontWeight: FontWeight.bold)),
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(name, style: const TextStyle(color: Color(0xFF172C57), fontSize: 11))),
+          Text(percent, style: const TextStyle(color: Color(0xFF172C57), fontSize: 11, fontWeight: FontWeight.bold)),
         ],
       );
 }
@@ -352,10 +378,10 @@ class _ChipButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF172C57),
             side: const BorderSide(color: Color(0xFFF47C20)),
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            textStyle: const TextStyle(fontSize: 8),
+            textStyle: const TextStyle(fontSize: 10),
           ),
         ),
       );
@@ -387,16 +413,16 @@ class _RecentLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
           children: [
-            CircleAvatar(radius: 12, backgroundColor: const Color(0xFFE8ECFA), child: Icon(icon, size: 13, color: const Color(0xFF5A8DEE))),
-            const SizedBox(width: 8),
+            CircleAvatar(radius: 16, backgroundColor: const Color(0xFFE8ECFA), child: Icon(icon, size: 17, color: const Color(0xFF5A8DEE))),
+            const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(color: Color(0xFF172C57), fontSize: 9, fontWeight: FontWeight.w600)),
-              Text(category, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 8)),
+              Text(title, style: const TextStyle(color: Color(0xFF172C57), fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(category, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
             ])),
-            Text(amount, style: const TextStyle(color: Color(0xFF172C57), fontSize: 9, fontWeight: FontWeight.bold)),
+            Text(amount, style: const TextStyle(color: Color(0xFF172C57), fontSize: 11, fontWeight: FontWeight.bold)),
           ],
         ),
       );
@@ -411,11 +437,17 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(11)),
+        padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: const Color(0xFF172C57).withOpacity(.06), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(color: Color(0xFF172C57), fontSize: 9, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 7),
+          Text(title, style: const TextStyle(color: Color(0xFF172C57), fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 14),
           child,
         ]),
       );

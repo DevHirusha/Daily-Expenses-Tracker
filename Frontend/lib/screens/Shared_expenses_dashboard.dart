@@ -8,8 +8,9 @@ import '../services/api_service.dart';
 
 class SharedExpensesScreen extends StatefulWidget {
   final String token;
+  final ValueChanged<int>? onNavigate;
 
-  const SharedExpensesScreen({super.key, required this.token});
+  const SharedExpensesScreen({super.key, required this.token, this.onNavigate});
 
   @override
   State<SharedExpensesScreen> createState() => _SharedExpensesScreenState();
@@ -95,7 +96,13 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
         backgroundColor: const Color(0xFFE8ECFA),
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              widget.onNavigate?.call(0);
+            }
+          },
           icon: const Icon(Icons.arrow_back, color: Color(0xFF172C57)),
           tooltip: 'Back',
         ),
