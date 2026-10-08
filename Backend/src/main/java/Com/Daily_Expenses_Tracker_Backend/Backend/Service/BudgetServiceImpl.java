@@ -5,6 +5,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateBudgetRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.SettlementResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.SettlementPaymentResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateBudgetRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.GroupEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
@@ -89,6 +90,30 @@ public class BudgetServiceImpl implements BudgetService {
             .filter(budget -> !budget.getOwner().getId().equals(user.getId()))
                 .map(budget -> toResponse(budget, false, user));
         return Stream.concat(owned, shared).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BudgetResponse getBudget(String email, Long budgetId) {
+        UserEntity viewer = findUser(email);
+        BudgetEntity budget = findBudget(budgetId);
+        assertBudgetAccess(viewer, budget);
+        return toResponse(budget, budget.getOwner().getId().equals(viewer.getId()), viewer);
+    }
+
+    @Override
+    @Transactional
+    public BudgetResponse updateBudget(String email, Long budgetId, UpdateBudgetRequest request) {
+        UserEntity owner = findUser(email);
+        BudgetEntity budget = findBudget(budgetId);
+        if (!budget.getOwner().getId().equals(owner.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the budget owner can edit it");
+        }
+        budget.setName(request.getName().trim());
+        budget.setAmount(request.getAmount());
+        budget.setStartDate(request.getStartDate());
+        budget.setEndDate(request.getEndDate());
+        return toResponse(budgetRepository.save(budget), true, owner);
     }
 
     @Override
@@ -272,6 +297,13 @@ public class BudgetServiceImpl implements BudgetService {
     private BudgetEntity findBudget(Long budgetId) {
         return budgetRepository.findById(budgetId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Budget not found"));
+    }
+
+    private void assertBudgetAccess(UserEntity viewer, BudgetEntity budget) {
+        if (!budget.getOwner().getId().equals(viewer.getId())
+                && !budget.getMemberUserIds().contains(viewer.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this budget");
+        }
     }
 
     private BudgetResponse toResponse(BudgetEntity budget, boolean owner, UserEntity viewer) {

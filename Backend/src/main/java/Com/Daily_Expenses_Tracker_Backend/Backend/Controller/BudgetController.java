@@ -7,6 +7,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateBudgetProofRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateBudgetSplitRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateSettlementRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.SettlementResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateBudgetRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.BudgetService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,21 @@ public class BudgetController {
     public List<BudgetResponse> getAll(
             @CurrentSecurityContext(expression = "authentication?.name") String email) {
         return budgetService.getBudgets(email);
+    }
+
+    @GetMapping("/{budgetId}")
+    public BudgetResponse getOne(
+            @PathVariable Long budgetId,
+            @CurrentSecurityContext(expression = "authentication?.name") String email) {
+        return budgetService.getBudget(email, budgetId);
+    }
+
+    @PutMapping("/{budgetId}")
+    public BudgetResponse update(
+            @PathVariable Long budgetId,
+            @Valid @RequestBody UpdateBudgetRequest request,
+            @CurrentSecurityContext(expression = "authentication?.name") String email) {
+        return budgetService.updateBudget(email, budgetId, request);
     }
 
     @GetMapping("/{budgetId}/members")

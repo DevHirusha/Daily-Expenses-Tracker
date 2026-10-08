@@ -45,7 +45,7 @@ public class SecurityConfig {
                 httpSecurity.cors(Customizer.withDefaults())
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .authorizeHttpRequests(auth -> auth
-                                                       .requestMatchers("/api/v1.0/profile", "/api/v1.0/is-authenticated", "/api/v1.0/friends/**", "/api/v1.0/groups/**", "/api/v1.0/budgets/**")
+                                                       .requestMatchers("/api/v1.0/profile", "/api/v1.0/is-authenticated", "/api/v1.0/friends/**", "/api/v1.0/groups/**", "/api/v1.0/budgets/**", "/api/v1.0/savings-goals/**")
                                                                        .authenticated()
                                                        .requestMatchers("/api/v1.0/**").permitAll()
                                                        .anyRequest().authenticated())
@@ -76,6 +76,7 @@ public class SecurityConfig {
                                 "GET",
                                 "POST",
                                 "PUT",
+                                "PATCH",
                                 "DELETE",
                                 "OPTIONS"));
 
