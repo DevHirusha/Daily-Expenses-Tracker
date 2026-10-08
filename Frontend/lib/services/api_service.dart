@@ -6,11 +6,14 @@ class ApiService {
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
       ? const String.fromEnvironment('API_BASE_URL')
-        : 'https://daily-expenses-tracker-g3l0.onrender.com/api/v1.0';
+        : 'http://localhost:3030/api/v1.0';
 
       // Local development URLs:
       // Web/desktop: http://localhost:3030/api/v1.0
       // Android emulator: http://10.0.2.2:3030/api/v1.0
+
+      // Render backend URL:
+      // https://daily-expenses-tracker-g3l0.onrender.com/api/v1.0
 
   // ---------- REGISTER ----------
   static Future<Map<String, dynamic>> register({
