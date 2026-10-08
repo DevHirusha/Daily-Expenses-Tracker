@@ -2,112 +2,165 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Config;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.Filter.JwtRequestFilter;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.AppUserDetailsService;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.stereotype.Component;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
-import java.io.IOException;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-        private final AppUserDetailsService appUserDetailsService;
-        private final JwtRequestFilter jwtRequestFilter;
-        private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final AppUserDetailsService appUserDetailsService;
+    private final JwtRequestFilter jwtRequestFilter;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
-        @Bean
-        public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
-                httpSecurity.cors(Customizer.withDefaults())
-                                .csrf(AbstractHttpConfigurer::disable)
-                                .authorizeHttpRequests(auth -> auth
-                                                       .requestMatchers("/api/v1.0/profile", "/api/v1.0/is-authenticated", "/api/v1.0/friends/**", "/api/v1.0/groups/**", "/api/v1.0/budgets/**")
-                                                                       .authenticated()
-                                                       .requestMatchers("/api/v1.0/**").permitAll()
-                                                       .anyRequest().authenticated())
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                                .logout(AbstractHttpConfigurer::disable)
-                                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
-                        .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint));
-                return httpSecurity.build();
-        }
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity httpSecurity
+    ) throws Exception {
 
-        @Bean
-        public PasswordEncoder passwordEncoder() {
-                return new BCryptPasswordEncoder();
-        }
+        httpSecurity
+                .cors(cors ->
+                        cors.configurationSource(
+                                corsConfigurationSource()
+                        )
+                )
 
-        @Bean
-        public CorsFilter corsFilter() {
-                return new CorsFilter(corsConfigurationSource());
-        }
+                .csrf(AbstractHttpConfigurer::disable)
 
-        private CorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration config = new CorsConfiguration();
+                .authorizeHttpRequests(auth -> auth
 
-                config.setAllowedOriginPatterns(List.of("*"));
+                        // CORS preflight
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
 
-                config.setAllowedMethods(List.of(
-                                "GET",
-                                "POST",
-                                "PUT",
-                                "DELETE",
-                                "OPTIONS"));
+                        // User public endpoints
+                        .requestMatchers(
+                                "/login",
+                                "/register",
+                                "/send-reset-otp",
+                                "/send-otp",
+                                "/reset-password",
+                                "/logout"
+                        ).permitAll()
 
-                config.setAllowedHeaders(List.of("*"));
+                        // Admin login
+                        .requestMatchers(
+                                "/admin/login"
+                        ).permitAll()
 
-                config.setAllowCredentials(true);
+                        // Admin APIs
+                        .requestMatchers(
+                                "/admin/**"
+                        ).hasRole("ADMIN")
 
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                        // Other APIs
+                        .anyRequest().authenticated()
+                )
 
-                source.registerCorsConfiguration("/**", config);
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
 
-                return source;
-        }
+                .logout(AbstractHttpConfigurer::disable)
 
-        @Bean
-        public AuthenticationManager authenticationManager() {
+                .addFilterBefore(
+                        jwtRequestFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                )
 
-                DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider(appUserDetailsService);
+                .exceptionHandling(ex ->
+                        ex.authenticationEntryPoint(
+                                customAuthenticationEntryPoint
+                        )
+                );
 
-                authenticationProvider.setPasswordEncoder(passwordEncoder());
+        return httpSecurity.build();
+    }
 
-                return new ProviderManager(authenticationProvider);
-        }
 
-    @Component
-    public static class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
-        @Override
-        public void commence(HttpServletRequest request, HttpServletResponse response,
-                             AuthenticationException authException) throws IOException, ServletException {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"authenticated\" : false, \"message\" : \"User is not authenticated\"}");
-        }
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration config = new CorsConfiguration();
+
+        config.setAllowedOrigins(
+                List.of("http://localhost:5173")
+        );
+
+        config.setAllowedMethods(
+                List.of(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "DELETE",
+                        "PATCH",
+                        "OPTIONS"
+                )
+        );
+
+        config.setAllowedHeaders(
+                List.of("*")
+        );
+
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+                "/**",
+                config
+        );
+
+        return source;
+    }
+
+
+    @Bean
+    public AuthenticationManager authenticationManager() {
+
+        DaoAuthenticationProvider authenticationProvider =
+                new DaoAuthenticationProvider(
+                        appUserDetailsService
+                );
+
+        authenticationProvider.setPasswordEncoder(
+                passwordEncoder()
+        );
+
+        return new ProviderManager(
+                authenticationProvider
+        );
     }
 }

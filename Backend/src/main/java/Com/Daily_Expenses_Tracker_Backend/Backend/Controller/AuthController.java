@@ -130,7 +130,7 @@ public class AuthController {
            return  ResponseEntity.ok(email != null);
     }
 
-    @PostMapping("send-reset-otp")
+    @PostMapping("/send-reset-otp")
     public void sendResetOtp(@RequestParam String email) {
           try {
                profileService.sendResetOtp(email);

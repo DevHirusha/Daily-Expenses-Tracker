@@ -37,7 +37,7 @@ const ProfileForm = () => (
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   // Logout function
   const handleLogout = () => {

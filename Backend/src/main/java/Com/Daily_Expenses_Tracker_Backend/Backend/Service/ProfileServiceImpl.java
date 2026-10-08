@@ -2,6 +2,7 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Service;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.Role;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -192,6 +193,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .resetOtpExpiredAt(0L)
                 .verifyOtp(null)
                 .verifyOtpExpireAt(0L)
+                .role(Role.USER)
                 .resetOtp(null)
                 .build();
     }

@@ -35,6 +35,12 @@ public class UserEntity {
     private String resetOtp;
     private Long resetOtpExpiredAt;
 
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private Role role = Role.USER;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
