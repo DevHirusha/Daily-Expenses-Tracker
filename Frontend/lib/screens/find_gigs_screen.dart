@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'gig_details_screen.dart';
+import 'supporter_dashboard_screen.dart';
 
 class FindGigsScreen extends StatefulWidget {
   const FindGigsScreen({super.key});
@@ -72,29 +74,31 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
         body: SafeArea(
           bottom: false,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(11, 8, 11, 24),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
               _buildHeader(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+              _SummaryCard(onTap: _openSupporterDashboard),
+              const SizedBox(height: 20),
               _buildFilterBar(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
               const Text(
                 'Opportunities near Colombo',
                 style: TextStyle(
                   color: _navy,
-                  fontSize: 12,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                   height: 1.1,
                 ),
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 12),
               if (visibleGigs.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 48),
                   child: Center(
                     child: Text(
                       'No gigs found',
-                      style: TextStyle(color: _mutedNavy, fontSize: 13),
+                      style: TextStyle(color: _mutedNavy, fontSize: 15),
                     ),
                   ),
                 )
@@ -104,7 +108,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
                     padding: const EdgeInsets.only(bottom: 9),
                     child: _GigCard(
                       gig: gig,
-                      onDetails: () => _showGigDetails(gig),
+                      onDetails: () => _openGigDetails(gig),
                     ),
                   ),
                 ),
@@ -123,7 +127,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
             'Find gigs',
             style: TextStyle(
               color: _navy,
-              fontSize: 14,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -134,10 +138,10 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
           child: InkWell(
             borderRadius: BorderRadius.circular(7),
             onTap: _showSearchMessage,
-            child: const SizedBox(
-              width: 24,
-              height: 24,
-              child: Icon(Icons.search, color: _navy, size: 16),
+          child: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(Icons.search, color: _navy, size: 21),
             ),
           ),
         ),
@@ -147,7 +151,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
 
   Widget _buildFilterBar() {
     return Container(
-      height: 24,
+      height: 42,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: const Color(0xFFD3D9EE),
@@ -164,13 +168,13 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: selected ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   _filters[index],
                   style: TextStyle(
                     color: selected ? _navy : _mutedNavy,
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
@@ -188,6 +192,30 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
         content: Text('Search is ready for your next gig.'),
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _openGigDetails(_Gig gig) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GigDetailsScreen(
+          title: gig.title,
+          company: gig.company,
+          pay: gig.pay,
+          location: gig.location,
+          type: gig.type,
+        ),
+      ),
+    );
+  }
+
+  void _openSupporterDashboard() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SupporterDashboardScreen(),
       ),
     );
   }
@@ -230,6 +258,74 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   }
 }
 
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF172C57),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(15, 14, 12, 14),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D4A7C),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.insights_outlined,
+                  color: Colors.white,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 11),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Supporter summary',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'View combined income and expenses',
+                      style: TextStyle(
+                        color: Color(0xFFC8D3EA),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white,
+                size: 17,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GigCard extends StatelessWidget {
   final _Gig gig;
   final VoidCallback onDetails;
@@ -249,22 +345,22 @@ class _GigCard extends StatelessWidget {
         onTap: onDetails,
         borderRadius: BorderRadius.circular(11),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
           child: Column(
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 23,
-                    height: 23,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: gig.iconColor,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(gig.icon, color: Colors.white, size: 13),
+                    child: Icon(gig.icon, color: Colors.white, size: 21),
                   ),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,46 +371,46 @@ class _GigCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: navy,
-                            fontSize: 11,
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
                             height: 1.1,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 5),
                         Text(
                           gig.company,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: mutedNavy,
-                            fontSize: 8,
+                            fontSize: 12,
                             height: 1.1,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 10),
                   Text(
                     gig.pay,
                     style: const TextStyle(
                       color: orange,
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   _Tag(label: gig.location),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 8),
                   _Tag(label: gig.type),
                 ],
               ),
               const Padding(
-                padding: EdgeInsets.only(top: 7, bottom: 6),
+                padding: EdgeInsets.only(top: 14, bottom: 12),
                 child: Divider(height: 1, color: Color(0xFFE7EAF2)),
               ),
               Row(
@@ -322,18 +418,18 @@ class _GigCard extends StatelessWidget {
                 children: [
                   Text(
                     gig.posted,
-                    style: const TextStyle(color: mutedNavy, fontSize: 8),
+                    style: const TextStyle(color: mutedNavy, fontSize: 11),
                   ),
                   InkWell(
                     onTap: onDetails,
                     borderRadius: BorderRadius.circular(4),
                     child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                      padding: EdgeInsets.symmetric(horizontal: 2, vertical: 3),
                       child: Text(
                         'View Details →',
                         style: TextStyle(
                           color: orange,
-                          fontSize: 8,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -357,7 +453,7 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: const Color(0xFFF0F2F8),
         borderRadius: BorderRadius.circular(3),
@@ -366,7 +462,7 @@ class _Tag extends StatelessWidget {
         label,
         style: const TextStyle(
           color: Color(0xFF34456B),
-          fontSize: 7,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
         ),
       ),

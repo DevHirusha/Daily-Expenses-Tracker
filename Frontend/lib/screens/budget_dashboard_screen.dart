@@ -234,6 +234,8 @@ class _BudgetDashboardScreenState extends State<BudgetDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _SavingsShortcut(onTap: _openSavingsGoals),
+                    const SizedBox(height: 12),
                     _SummaryCard(
                       spent: _remaining,
                       budget: _monthlyBudget,
@@ -267,8 +269,6 @@ class _BudgetDashboardScreenState extends State<BudgetDashboardScreen> {
                         child: const Text('See more categories'),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    _SavingsShortcut(onTap: _openSavingsGoals),
                   ],
                 ),
               ),
