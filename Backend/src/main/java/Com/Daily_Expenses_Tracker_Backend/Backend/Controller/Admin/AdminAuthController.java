@@ -69,8 +69,8 @@ public class AdminAuthController {
                         new RuntimeException("User not found")
                 );
 
-        // 3. Check ADMIN role
-        if (user.getRole() != Role.ADMIN) {
+        // 3. Check admin role
+        if (user.getRole() != Role.ADMIN && user.getRole() != Role.SUPER_ADMIN) {
 
             Map<String, Object> error = new HashMap<>();
             error.put("error", true);
@@ -93,7 +93,7 @@ public class AdminAuthController {
         Map<String, Object> response = new HashMap<>();
 
         response.put("token", jwtToken);
-        response.put("role", "ADMIN");
+        response.put("role", user.getRole().name());
         response.put("userId", user.getUserId());
         response.put("name", user.getName());
         response.put("email", user.getEmail());

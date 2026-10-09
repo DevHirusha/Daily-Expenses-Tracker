@@ -78,7 +78,7 @@ function Login() {
       }
 
       // Extra safety — even though backend blocks non-admins
-      if (role !== "ADMIN") {
+      if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
         setError("Access denied. Admin account required.");
         return;
       }

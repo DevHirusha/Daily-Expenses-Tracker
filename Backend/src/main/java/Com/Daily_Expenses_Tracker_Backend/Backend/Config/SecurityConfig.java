@@ -74,7 +74,7 @@ public class SecurityConfig {
                         // Admin APIs
                         .requestMatchers(
                                 "/admin/**"
-                        ).hasRole("ADMIN")
+                        ).hasAnyRole("ADMIN", "SUPER_ADMIN")
 
                         // Other APIs
                         .anyRequest().authenticated()
