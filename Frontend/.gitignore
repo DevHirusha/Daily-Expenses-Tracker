@@ -46,3 +46,7 @@ app.*.symbols
 
 # Obfuscation
 app.*.map.json
+
+
+# API service
+lib/services/api_service.dart

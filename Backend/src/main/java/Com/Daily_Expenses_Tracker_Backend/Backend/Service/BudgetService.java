@@ -4,6 +4,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.BudgetResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateBudgetRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.SettlementResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateBudgetRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,8 @@ import java.util.Map;
 public interface BudgetService {
     BudgetResponse createBudget(String email, CreateBudgetRequest request);
     List<BudgetResponse> getBudgets(String email);
+    BudgetResponse getBudget(String email, Long budgetId);
+    BudgetResponse updateBudget(String email, Long budgetId, UpdateBudgetRequest request);
     List<GroupMemberResponse> getMembers(String email, Long budgetId);
     void addMember(String email, Long budgetId, String userId);
     void deleteBudget(String email, Long budgetId);

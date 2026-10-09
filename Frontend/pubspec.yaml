@@ -19,15 +19,28 @@ dependencies:
   http: ^1.5.0
   image_picker: ^1.1.2
   qr_flutter: ^4.1.0
-  syncfusion_flutter_pdfviewer: ^28.2.12
+  syncfusion_flutter_pdfviewer: ^33.2.13
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.7
   smooth_page_indicator: ^3.0.0
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: assets/images/logo.png
+    background_color: "#06295E"
+    theme_color: "#06295E"
+  image_path: assets/images/logo.png
+  adaptive_icon_background: "#06295E"
+  adaptive_icon_foreground: assets/images/logo.png
 
 
 flutter:

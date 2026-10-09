@@ -1,15 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
       ? const String.fromEnvironment('API_BASE_URL')
-      : kIsWeb || defaultTargetPlatform != TargetPlatform.android
-      ? 'http://localhost:3030/api/v1.0'
-      : 'http://10.0.2.2:3030/api/v1.0';
+      : 'http://localhost:3030/api/v1.0';
+
+  // Local development URLs:
+  // Web/desktop: http://localhost:3030/api/v1.0
+  // Android emulator: http://10.0.2.2:3030/api/v1.0
+
+  // Render backend URL:
+  // https://daily-expenses-tracker-g3l0.onrender.com/api/v1.0
 
   // ---------- REGISTER ----------
   static Future<Map<String, dynamic>> register({
@@ -239,6 +243,303 @@ class ApiService {
     final result = await _authorizedJson(
       method: 'GET',
       url: Uri.parse('$baseUrl/budgets'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
+  static Future<Map<String, dynamic>> getBudget({
+    required String token,
+    required int budgetId,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/budgets/$budgetId'),
+      token: token,
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateBudget({
+    required String token,
+    required int budgetId,
+    required String name,
+    required double amount,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/budgets/$budgetId'),
+      token: token,
+      payload: {
+        'name': name,
+        'amount': amount,
+        if (startDate != null) 'startDate': _dateOnly(startDate),
+        if (endDate != null) 'endDate': _dateOnly(endDate),
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<List<Map<String, dynamic>>> getBudgetCategories({
+    required String token,
+    required int budgetId,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/categories'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
+  static Future<Map<String, dynamic>> createBudgetCategory({
+    required String token,
+    required int budgetId,
+    required String name,
+    required double limitAmount,
+    int warningThreshold = 80,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/categories'),
+      token: token,
+      payload: {
+        'name': name,
+        'limitAmount': limitAmount,
+        'warningThreshold': warningThreshold,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateBudgetCategory({
+    required String token,
+    required int budgetId,
+    required int categoryId,
+    required String name,
+    required double limitAmount,
+    int warningThreshold = 80,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/categories/$categoryId'),
+      token: token,
+      payload: {
+        'name': name,
+        'limitAmount': limitAmount,
+        'warningThreshold': warningThreshold,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<void> deleteBudgetCategory({
+    required String token,
+    required int budgetId,
+    required int categoryId,
+  }) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/categories/$categoryId'),
+      token: token,
+    );
+  }
+
+  static Future<List<Map<String, dynamic>>> getExpenses({
+    required String token,
+    required int budgetId,
+    int? categoryId,
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    final query = <String, String>{
+      if (categoryId != null) 'categoryId': '$categoryId',
+      if (start != null) 'start': _dateOnly(start),
+      if (end != null) 'end': _dateOnly(end),
+    };
+    final url = Uri.parse(
+      '$baseUrl/budgets/$budgetId/expenses',
+    ).replace(queryParameters: query);
+    final result = await _authorizedJson(method: 'GET', url: url, token: token);
+    return _mapList(result);
+  }
+
+  static Future<Map<String, dynamic>> createExpense({
+    required String token,
+    required int budgetId,
+    required int categoryId,
+    required String name,
+    required double amount,
+    required DateTime expenseDate,
+    String? merchant,
+    String? source,
+    String? proofData,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/expenses'),
+      token: token,
+      payload: {
+        'categoryId': categoryId,
+        'name': name,
+        'amount': amount,
+        'expenseDate': _dateOnly(expenseDate),
+        if (merchant != null && merchant.trim().isNotEmpty)
+          'merchant': merchant.trim(),
+        if (source != null && source.trim().isNotEmpty) 'source': source.trim(),
+        if (proofData != null) 'proofData': proofData,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateExpense({
+    required String token,
+    required int budgetId,
+    required int expenseId,
+    required int categoryId,
+    required String name,
+    required double amount,
+    required DateTime expenseDate,
+    String? merchant,
+    String? source,
+    String? proofData,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/expenses/$expenseId'),
+      token: token,
+      payload: {
+        'categoryId': categoryId,
+        'name': name,
+        'amount': amount,
+        'expenseDate': _dateOnly(expenseDate),
+        if (merchant != null && merchant.trim().isNotEmpty)
+          'merchant': merchant.trim(),
+        if (source != null && source.trim().isNotEmpty) 'source': source.trim(),
+        if (proofData != null) 'proofData': proofData,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<void> deleteExpense({
+    required String token,
+    required int budgetId,
+    required int expenseId,
+  }) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/budgets/$budgetId/expenses/$expenseId'),
+      token: token,
+    );
+  }
+
+  static Future<Map<String, dynamic>> getCategoryDetails({
+    required String token,
+    required int budgetId,
+    required int categoryId,
+    String? month,
+  }) async {
+    final url = Uri.parse(
+      '$baseUrl/budgets/$budgetId/categories/$categoryId/details',
+    ).replace(queryParameters: {if (month != null) 'month': month});
+    final result = await _authorizedJson(method: 'GET', url: url, token: token);
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<List<Map<String, dynamic>>> getSavingsGoals({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/savings-goals'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
+  static Future<Map<String, dynamic>> createSavingsGoal({
+    required String token,
+    required String name,
+    String? type,
+    required double targetAmount,
+    required DateTime targetDate,
+    required double savedAmount,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/savings-goals'),
+      token: token,
+      payload: {
+        'name': name,
+        if (type != null) 'type': type,
+        'targetAmount': targetAmount,
+        'targetDate': _dateOnly(targetDate),
+        'savedAmount': savedAmount,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateSavingsGoal({
+    required String token,
+    required int goalId,
+    required String name,
+    String? type,
+    required double targetAmount,
+    required DateTime targetDate,
+    required double savedAmount,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/savings-goals/$goalId'),
+      token: token,
+      payload: {
+        'name': name,
+        if (type != null) 'type': type,
+        'targetAmount': targetAmount,
+        'targetDate': _dateOnly(targetDate),
+        'savedAmount': savedAmount,
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateSavingsGoalSaved({
+    required String token,
+    required int goalId,
+    required double savedAmount,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PATCH',
+      url: Uri.parse('$baseUrl/savings-goals/$goalId/saved'),
+      token: token,
+      payload: {'savedAmount': savedAmount},
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<void> deleteSavingsGoal({
+    required String token,
+    required int goalId,
+  }) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/savings-goals/$goalId'),
+      token: token,
+    );
+  }
+
+  static Future<List<Map<String, dynamic>>> getSavingsGoalHistory({
+    required String token,
+    required int goalId,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/savings-goals/$goalId/history'),
       token: token,
     );
     return _mapList(result);
