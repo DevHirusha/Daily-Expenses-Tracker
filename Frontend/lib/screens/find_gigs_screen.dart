@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import 'gig_details_screen.dart';
+import 'my_gig_applications_screen.dart';
 import 'supporter_dashboard_screen.dart';
 
 class FindGigsScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   final _filters = const ['All', 'ONLINE', 'HYBRID', 'ONSITE'];
   int _selectedFilter = 0;
   List<_Gig> _gigs = const [];
+  List<GigApplication> _applications = const [];
   final Set<int> _appliedGigIds = <int>{};
   bool _isLoading = true;
   String? _error;
@@ -32,6 +34,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   void initState() {
     super.initState();
     _loadGigs();
+    _loadApplications();
   }
 
   Future<void> _loadGigs() async {
@@ -53,6 +56,22 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
         _isLoading = false;
         _error = error.toString().replaceFirst('Exception: ', '');
       });
+    }
+  }
+
+  Future<void> _loadApplications() async {
+    try {
+      final rows = await ApiService.getMyGigApplications(token: widget.token);
+      final applications = rows.map(GigApplication.fromJson).toList();
+      if (!mounted) return;
+      setState(() {
+        _applications = applications;
+        _appliedGigIds
+          ..clear()
+          ..addAll(applications.map((application) => application.gigId));
+      });
+    } catch (_) {
+      // The gig list can still be used if the applications request fails.
     }
   }
 
@@ -80,6 +99,11 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
               _buildHeader(),
               const SizedBox(height: 20),
               _SummaryCard(onTap: _openSupporterDashboard),
+              const SizedBox(height: 10),
+              _MyApplicationsCard(
+                count: _applications.length,
+                onTap: _openMyApplications,
+              ),
               const SizedBox(height: 20),
               _buildFilterBar(),
               const SizedBox(height: 18),
@@ -228,11 +252,14 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   }
 
   Future<void> _openGigDetails(_Gig gig) async {
+    if (gig.id == null) return;
     final applied = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => GigDetailsScreen(
           title: gig.title,
+          gigId: gig.id!,
+          token: widget.token,
           company: gig.company,
           pay: gig.pay,
           location: gig.location,
@@ -240,6 +267,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
           description: gig.description,
           requirements: gig.requirements,
           companyPhoneNumber: gig.companyPhoneNumber,
+          applicationDeadline: gig.applicationDeadline,
           imageData: gig.imageData,
         ),
       ),
@@ -248,14 +276,24 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   }
 
   Future<void> _applyToGig(_Gig gig) async {
+    if (gig.id == null) return;
+    if (gig.applicationClosed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Applications for this gig are closed.')),
+      );
+      return;
+    }
     if (gig.id != null && _appliedGigIds.contains(gig.id)) return;
 
     final applied = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => ApplyContactScreen(
+          token: widget.token,
+          gigId: gig.id!,
           company: gig.company,
           location: gig.location,
+          applicationDeadline: gig.applicationDeadline,
         ),
       ),
     );
@@ -265,6 +303,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   void _markGigAsApplied(_Gig gig, bool applied) {
     if (!applied || gig.id == null || !mounted) return;
     setState(() => _appliedGigIds.add(gig.id!));
+    _loadApplications();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Application submitted.'),
@@ -280,6 +319,16 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
         builder: (_) => const SupporterDashboardScreen(),
       ),
     );
+  }
+
+  Future<void> _openMyApplications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MyGigApplicationsScreen(token: widget.token),
+      ),
+    );
+    _loadApplications();
   }
 
   void _showGigDetails(_Gig gig) {
@@ -314,6 +363,80 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MyApplicationsCard extends StatelessWidget {
+  const _MyApplicationsCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(15, 13, 12, 13),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE7D4),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(Icons.assignment_outlined, color: Color(0xFFF47C20), size: 21),
+              ),
+              const SizedBox(width: 11),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My applications',
+                      style: TextStyle(
+                        color: Color(0xFF172C57),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Track pending, approved, and rejected gigs',
+                      style: TextStyle(color: Color(0xFF657596), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8ECFA),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: Color(0xFF172C57),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Icon(Icons.chevron_right, color: Color(0xFF657596)),
+            ],
+          ),
         ),
       ),
     );
@@ -471,11 +594,13 @@ class _GigCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
                 children: [
                   _Tag(label: gig.location),
-                  const SizedBox(width: 8),
                   _Tag(label: gig.type),
+                  if (gig.applicationDeadline != null) _Tag(label: 'Due ${gig.applicationDeadline}'),
                 ],
               ),
               const Padding(
@@ -510,12 +635,12 @@ class _GigCard extends StatelessWidget {
                   SizedBox(
                     height: 32,
                     child: FilledButton.icon(
-                      onPressed: isApplied ? null : onApply,
+                      onPressed: isApplied || gig.applicationClosed ? null : onApply,
                       icon: Icon(
-                        isApplied ? Icons.check : Icons.send_outlined,
+                        isApplied ? Icons.check : gig.applicationClosed ? Icons.lock_outline : Icons.send_outlined,
                         size: 14,
                       ),
-                      label: Text(isApplied ? 'Applied' : 'Apply'),
+                      label: Text(isApplied ? 'Applied' : gig.applicationClosed ? 'Closed' : 'Apply'),
                       style: FilledButton.styleFrom(
                         backgroundColor: orange,
                         disabledBackgroundColor: const Color(0xFFB6BED0),
@@ -579,6 +704,7 @@ class _Gig {
   final String description;
   final String requirements;
   final String companyPhoneNumber;
+  final String? applicationDeadline;
   final IconData icon;
   final Color iconColor;
   final String? imageData;
@@ -595,6 +721,7 @@ class _Gig {
     this.description = '',
     this.requirements = '',
     this.companyPhoneNumber = '',
+    this.applicationDeadline,
     required this.icon,
     required this.iconColor,
     this.imageData,
@@ -622,6 +749,7 @@ class _Gig {
       description: json['description']?.toString() ?? '',
       requirements: json['requirements']?.toString() ?? '',
       companyPhoneNumber: json['companyPhoneNumber']?.toString() ?? '',
+      applicationDeadline: json['applicationDeadline']?.toString(),
       icon: _iconFor(category),
       iconColor: _colorFor(category),
       imageData: json['imageData']?.toString(),
@@ -655,6 +783,14 @@ class _Gig {
       default:
         return const Color(0xFF6C789B);
     }
+  }
+
+  bool get applicationClosed {
+    final deadline = DateTime.tryParse(applicationDeadline ?? '');
+    if (deadline == null) return false;
+    final today = DateTime.now();
+    final dateOnly = DateTime(today.year, today.month, today.day);
+    return deadline.isBefore(dateOnly);
   }
 }
 

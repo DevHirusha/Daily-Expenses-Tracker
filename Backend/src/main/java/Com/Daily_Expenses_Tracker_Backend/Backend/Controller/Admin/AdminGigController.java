@@ -5,6 +5,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GigResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.GigEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GigRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GigApplicationRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -24,6 +26,7 @@ import java.util.List;
 public class AdminGigController {
 
     private final GigRepository gigRepository;
+    private final GigApplicationRepository applicationRepository;
     private final UserRepository userRepository;
 
     @GetMapping
@@ -50,6 +53,7 @@ public class AdminGigController {
                 .location(trimToNull(request.getLocation()))
                 .companyName(trimToNull(request.getCompanyName()))
                 .companyPhoneNumber(trimToNull(request.getCompanyPhoneNumber()))
+                .applicationDeadline(request.getApplicationDeadline())
                 .imageData(request.getImageData())
                 .createdByUserId(creator.getUserId())
                 .createdByName(creator.getName())
@@ -74,14 +78,18 @@ public class AdminGigController {
         gig.setLocation(trimToNull(request.getLocation()));
         gig.setCompanyName(trimToNull(request.getCompanyName()));
         gig.setCompanyPhoneNumber(trimToNull(request.getCompanyPhoneNumber()));
+        gig.setApplicationDeadline(request.getApplicationDeadline());
         gig.setImageData(request.getImageData());
 
         return ResponseEntity.ok(GigResponse.from(gigRepository.save(gig)));
     }
 
     @DeleteMapping("/{id}")
+    @Transactional
     public ResponseEntity<Void> deleteGig(@PathVariable Long id) {
-        gigRepository.delete(findGig(id));
+        GigEntity gig = findGig(id);
+        applicationRepository.deleteAllByGig_Id(id);
+        gigRepository.delete(gig);
         return ResponseEntity.noContent().build();
     }
 

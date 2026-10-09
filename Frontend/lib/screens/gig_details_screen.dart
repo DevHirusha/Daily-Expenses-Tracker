@@ -2,9 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
+
 class GigDetailsScreen extends StatelessWidget {
   const GigDetailsScreen({
     super.key,
+    required this.token,
+    required this.gigId,
     required this.title,
     required this.company,
     required this.pay,
@@ -13,10 +17,13 @@ class GigDetailsScreen extends StatelessWidget {
     this.description = '',
     this.requirements = '',
     this.companyPhoneNumber = '',
+    this.applicationDeadline,
     this.imageData,
   });
 
   final String title;
+  final String token;
+  final int gigId;
   final String company;
   final String pay;
   final String location;
@@ -24,6 +31,7 @@ class GigDetailsScreen extends StatelessWidget {
   final String description;
   final String requirements;
   final String companyPhoneNumber;
+  final String? applicationDeadline;
   final String? imageData;
 
   static const background = Color(0xFFE8ECFA);
@@ -47,6 +55,10 @@ class GigDetailsScreen extends StatelessWidget {
               location: location,
               type: type,
             ),
+            if (applicationDeadline != null && applicationDeadline!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _DeadlineCard(deadline: applicationDeadline!),
+            ],
             if (imageData != null && imageData!.isNotEmpty) ...[
               const SizedBox(height: 12),
               _GigPhoto(imageData: imageData!),
@@ -79,13 +91,18 @@ class GigDetailsScreen extends StatelessWidget {
             SizedBox(
               height: 50,
               child: FilledButton(
-                onPressed: () async {
+                onPressed: _isApplicationClosed
+                    ? null
+                    : () async {
                   final applied = await Navigator.push<bool>(
                     context,
                     MaterialPageRoute(
                       builder: (_) => ApplyContactScreen(
+                        token: token,
+                        gigId: gigId,
                         company: company,
                         location: location,
+                        applicationDeadline: applicationDeadline,
                       ),
                     ),
                   );
@@ -104,11 +121,58 @@ class GigDetailsScreen extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                child: const Text('Apply now'),
+                child: Text(_isApplicationClosed ? 'Applications closed' : 'Apply now'),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  bool get _isApplicationClosed {
+    final deadline = DateTime.tryParse(applicationDeadline ?? '');
+    if (deadline == null) return false;
+    final today = DateTime.now();
+    return deadline.isBefore(DateTime(today.year, today.month, today.day));
+  }
+}
+
+class _DeadlineCard extends StatelessWidget {
+  const _DeadlineCard({required this.deadline});
+
+  final String deadline;
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = DateTime.tryParse(deadline);
+    final formatted = parsed == null
+        ? deadline
+        : '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF2E8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_outlined, color: GigDetailsScreen.orange, size: 20),
+          const SizedBox(width: 9),
+          const Text(
+            'Application deadline:',
+            style: TextStyle(color: GigDetailsScreen.muted, fontSize: 12),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            formatted,
+            style: const TextStyle(
+              color: GigDetailsScreen.navy,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -430,12 +494,18 @@ class _EmployerCard extends StatelessWidget {
 class ApplyContactScreen extends StatefulWidget {
   const ApplyContactScreen({
     super.key,
+    required this.token,
+    required this.gigId,
     required this.company,
     required this.location,
+    this.applicationDeadline,
   });
 
+  final String token;
+  final int gigId;
   final String company;
   final String location;
+  final String? applicationDeadline;
 
   @override
   State<ApplyContactScreen> createState() => _ApplyContactScreenState();
@@ -443,6 +513,7 @@ class ApplyContactScreen extends StatefulWidget {
 
 class _ApplyContactScreenState extends State<ApplyContactScreen> {
   final _noteController = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -511,10 +582,12 @@ class _ApplyContactScreenState extends State<ApplyContactScreen> {
             const SizedBox(height: 14),
             const _OrDivider(),
             const SizedBox(height: 16),
-            const _FieldLabel('Available from'),
-            const SizedBox(height: 6),
-            const _FormSurface(child: Text('Mon, 22 Sep')),
-            const SizedBox(height: 16),
+            if (widget.applicationDeadline != null && widget.applicationDeadline!.isNotEmpty) ...[
+              const _FieldLabel('Application deadline'),
+              const SizedBox(height: 6),
+              _FormSurface(child: Text(_formatDeadline(widget.applicationDeadline!))),
+              const SizedBox(height: 16),
+            ],
             const _FieldLabel('Note to employer (optional)'),
             const SizedBox(height: 6),
             TextField(
@@ -538,15 +611,39 @@ class _ApplyContactScreenState extends State<ApplyContactScreen> {
             SizedBox(
               height: 50,
               child: FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: _submitting ? null : _submitApplication,
                 style: _orangeButton(),
-                child: const Text('Submit application'),
+                child: Text(_submitting ? 'Submitting...' : 'Submit application'),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _submitApplication() async {
+    setState(() => _submitting = true);
+    try {
+      await ApiService.createGigApplication(
+        token: widget.token,
+        gigId: widget.gigId,
+        note: _noteController.text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  String _formatDeadline(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    return '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
   }
 
   ButtonStyle _orangeButton() {

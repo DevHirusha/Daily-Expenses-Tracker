@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.time.LocalDate;
+
 @Data
 public class GigRequest {
 
@@ -36,6 +38,8 @@ public class GigRequest {
     @NotBlank(message = "Company phone number is required")
     @Size(max = 30, message = "Company phone number must not exceed 30 characters")
     private String companyPhoneNumber;
+
+    private LocalDate applicationDeadline;
 
     private String imageData;
 }

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Value;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Value
 @Builder
@@ -20,6 +21,7 @@ public class GigResponse {
     String location;
     String companyName;
     String companyPhoneNumber;
+    LocalDate applicationDeadline;
     String imageData;
     String createdByUserId;
     String createdByName;
@@ -38,6 +40,7 @@ public class GigResponse {
                 .location(gig.getLocation())
                 .companyName(gig.getCompanyName())
                 .companyPhoneNumber(gig.getCompanyPhoneNumber())
+                .applicationDeadline(gig.getApplicationDeadline())
                 .imageData(gig.getImageData())
                 .createdByUserId(gig.getCreatedByUserId())
                 .createdByName(gig.getCreatedByName())

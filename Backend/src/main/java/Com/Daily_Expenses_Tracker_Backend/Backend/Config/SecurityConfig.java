@@ -138,9 +138,20 @@ public class SecurityConfig {
                 )
         );
 
+        // Explicitly allow the bearer token used by Flutter web PUT/PATCH requests.
+        // Some browsers do not treat '*' as a valid credentialed preflight header.
         config.setAllowedHeaders(
-                List.of("*")
+                List.of(
+                        "Authorization",
+                        "Content-Type",
+                        "Accept",
+                        "Origin",
+                        "X-Requested-With"
+                )
         );
+
+        config.setExposedHeaders(List.of("Authorization"));
+        config.setMaxAge(3600L);
 
         config.setAllowCredentials(true);
 

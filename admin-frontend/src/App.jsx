@@ -4,6 +4,7 @@ import Dashboard from "./pages/DashboardHome/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import GigManagement from "./pages/Gig/GigManagement";
+import GigApplications from "./pages/Gig/GigApplications";
 import AnnouncementManagement from "./pages/Announcements/AnnouncementManagement";
 import ManageUsers from "./pages/Users/ManageUsers";
 import ProfileForm from "./pages/Profile/ProfileForm";
@@ -27,6 +28,7 @@ function App() {
         <Route index element={<DashboardHome />} /> {/* Default: /dashboard */}
         <Route path="users" element={<ManageUsers />} /> {/* /dashboard/users */}
         <Route path="gigs" element={<GigManagement />} /> {/* /dashboard/gigs */}
+        <Route path="gig-applications" element={<GigApplications />} /> {/* /dashboard/gig-applications */}
         <Route path="announcements" element={<AnnouncementManagement />} /> {/* /dashboard/announcements */}
         <Route path="profile" element={<ProfileForm />} /> {/* /dashboard/profile */}
       </Route>
