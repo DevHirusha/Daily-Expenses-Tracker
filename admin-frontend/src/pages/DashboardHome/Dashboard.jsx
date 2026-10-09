@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Menu,
   Home,
@@ -15,55 +14,20 @@ import {
 } from "lucide-react";
 import { assets } from "../../assets/images/assets";
 
-//Right side content components
-const DashboardHome = () => (
-  <div className="text-white text-xl">Dashboard Content</div>
-);
-const ManageUsers = () => (
-  <div className="text-white text-xl">Manage Users Content</div>
-);
-const BudgetManagement = () => (
-  <div className="text-white text-xl">Budget Management Content</div>
-);
-const ExpensesManagement = () => (
-  <div className="text-white text-xl">Expenses Management Content</div>
-);
-const GigManagement = () => (
-  <div className="text-white text-xl">Gigs Management Content</div>
-);
-const ProfileForm = () => (
-  <div className="text-white text-xl">Profile Form Content</div>
-);
-
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab =
+    location.pathname === "/dashboard"
+      ? "dashboard"
+      : location.pathname.split("/").pop();
 
   // Logout function
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_user");
 
-    //  navigate to login page after logout
-    navigate("/login");
-  };
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard":
-        return <DashboardHome />;
-      case "users":
-        return <ManageUsers />;
-      case "budget":
-        return <BudgetManagement />;
-      case "expenses":
-        return <ExpensesManagement />;
-      case "gigs":
-        return <GigManagement />;
-      case "profile":
-        return <ProfileForm />;
-      default:
-        return <DashboardHome />;
-    }
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -98,7 +62,7 @@ const Dashboard = () => {
           <ul className="space-y-2">
             {/* Dashboard */}
             <li
-              onClick={() => setActiveTab("dashboard")}
+              onClick={() => navigate("/dashboard")}
               className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
                 activeTab === "dashboard"
                   ? "text-yellow-600 bg-[#141B2D]/50"
@@ -115,7 +79,7 @@ const Dashboard = () => {
 
             {/* Manage Users */}
             <li
-              onClick={() => setActiveTab("users")}
+              onClick={() => navigate("/dashboard/users")}
               className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
                 activeTab === "users"
                   ? "text-yellow-600 bg-[#141B2D]/50"
@@ -128,7 +92,7 @@ const Dashboard = () => {
 
             {/* Budget Management */}
             <li
-              onClick={() => setActiveTab("budget")}
+              onClick={() => navigate("/dashboard/budget")}
               className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
                 activeTab === "budget"
                   ? "text-yellow-600 bg-[#141B2D]/50"
@@ -141,7 +105,7 @@ const Dashboard = () => {
 
             {/* Expenses Management */}
             <li
-              onClick={() => setActiveTab("expenses")}
+              onClick={() => navigate("/dashboard/expenses")}
               className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
                 activeTab === "expenses"
                   ? "text-yellow-600 bg-[#141B2D]/50"
@@ -154,7 +118,7 @@ const Dashboard = () => {
 
             {/* Gigs Management */}
             <li
-              onClick={() => setActiveTab("gigs")}
+              onClick={() => navigate("/dashboard/gigs")}
               className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
                 activeTab === "gigs"
                   ? "text-yellow-600 bg-[#141B2D]/50"
@@ -171,7 +135,7 @@ const Dashboard = () => {
 
             {/* Profile Form */}
             <li
-              onClick={() => setActiveTab("profile")}
+              onClick={() => navigate("/dashboard/profile")}
               className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
                 activeTab === "profile"
                   ? "text-yellow-600 bg-[#141B2D]/50"
@@ -231,7 +195,7 @@ const Dashboard = () => {
         </header>
 
         <div className="p-6 pt-0 flex flex-col gap-6 mt-6">
-          {renderContent()}
+          <Outlet />
         </div>
       </main>
     </div>
