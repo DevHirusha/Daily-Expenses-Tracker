@@ -30,10 +30,17 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
     _loadBudgets();
   }
 
+  bool _isSharedOwnedBudget(Map<String, dynamic> budget) {
+    final memberUserIds = budget['memberUserIds'];
+    return budget['owner'] == true &&
+        memberUserIds is List &&
+        memberUserIds.isNotEmpty;
+  }
+
   Future<void> _loadBudgets() async {
     try {
       final loaded = await ApiService.getBudgets(token: widget.token);
-      final owned = loaded.where((budget) => budget['owner'] == true).toList();
+      final owned = loaded.where(_isSharedOwnedBudget).toList();
       final ownedAmount = owned.fold<double>(
         0,
         (sum, budget) => sum + ((budget['amount'] as num?)?.toDouble() ?? 0),
@@ -82,9 +89,11 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleBudgets = budgets
-        .where((budget) => budget['owner'] == showOwned)
-        .toList();
+    final visibleBudgets = budgets.where((budget) {
+      return showOwned
+        ? _isSharedOwnedBudget(budget)
+        : budget['owner'] != true;
+    }).toList();
     final total = visibleBudgets.fold<double>(
       0,
       (sum, budget) => sum + (budget['amount'] as num? ?? 0).toDouble(),
