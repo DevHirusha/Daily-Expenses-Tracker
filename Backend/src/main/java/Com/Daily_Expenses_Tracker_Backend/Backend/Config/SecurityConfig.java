@@ -63,7 +63,13 @@ public class SecurityConfig {
                                 "/send-reset-otp",
                                 "/send-otp",
                                 "/reset-password",
-                                "/logout"
+                                "/logout",
+                                "/api/v1.0/login",
+                                "/api/v1.0/register",
+                                "/api/v1.0/send-reset-otp",
+                                "/api/v1.0/send-otp",
+                                "/api/v1.0/reset-password",
+                                "/api/v1.0/logout"
                         ).permitAll()
 
                         // Admin login
@@ -114,8 +120,11 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(
-                List.of("http://localhost:5173")
+        config.setAllowedOriginPatterns(
+                List.of(
+                        "http://localhost:[*]",
+                        "http://127.0.0.1:[*]"
+                )
         );
 
         config.setAllowedMethods(
