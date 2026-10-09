@@ -15,6 +15,7 @@ public class GigApplicationResponse {
     Long id;
     Long gigId;
     String gigTitle;
+    String estimatedEarnings;
     String companyName;
     String location;
     LocalDate applicationDeadline;
@@ -36,6 +37,7 @@ public class GigApplicationResponse {
                 .id(application.getId())
                 .gigId(gig.getId())
                 .gigTitle(gig.getTitle())
+                .estimatedEarnings(gig.getEstimatedEarnings())
                 .companyName(gig.getCompanyName())
                 .location(gig.getLocation())
                 .applicationDeadline(gig.getApplicationDeadline())

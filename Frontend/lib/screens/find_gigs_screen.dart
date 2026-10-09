@@ -316,7 +316,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const SupporterDashboardScreen(),
+        builder: (_) => SupporterDashboardScreen(token: widget.token),
       ),
     );
   }
