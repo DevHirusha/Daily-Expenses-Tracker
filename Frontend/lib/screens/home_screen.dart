@@ -23,7 +23,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _budgets = const [];
   List<_HomeCategorySummary> _todayCategories = const [];
+  List<_RecentExpense> _recentExpenses = const [];
   double _todaySpent = 0;
+  double? _totalSpent = 0;
   bool _isLoading = true;
 
   @override
@@ -36,31 +38,48 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final budgets = await ApiService.getBudgets(token: widget.token);
       var todayCategories = _defaultHomeCategories();
+      var recentExpenses = <_RecentExpense>[];
       var todaySpent = 0.0;
+      var totalSpent = 0.0;
+      final today = DateTime.now();
       final ownedBudgets = budgets
           .where((item) => item['owner'] == true)
           .toList();
+      final expensesByBudget = <int, List<Map<String, dynamic>>>{};
+      for (final budget in budgets) {
+        final budgetId = (budget['id'] as num?)?.toInt();
+        if (budgetId == null) continue;
+        final expenses = await ApiService.getExpenses(
+          token: widget.token,
+          budgetId: budgetId,
+        );
+        expensesByBudget[budgetId] = expenses;
+        for (final expense in expenses) {
+          recentExpenses.add(_RecentExpense.fromJson(expense));
+          final amount = (expense['amount'] as num?)?.toDouble() ?? 0;
+          totalSpent += amount;
+          final expenseDate = DateTime.tryParse(
+            expense['expenseDate']?.toString() ?? '',
+          );
+          if (expenseDate != null && _isSameDate(expenseDate, today)) {
+            todaySpent += amount;
+          }
+        }
+      }
       if (ownedBudgets.isNotEmpty) {
         final budgetId = (ownedBudgets.first['id'] as num).toInt();
-        final today = DateTime.now();
         final categories = await ApiService.getBudgetCategories(
           token: widget.token,
           budgetId: budgetId,
         );
-        final expenses = await ApiService.getExpenses(
-          token: widget.token,
-          budgetId: budgetId,
-          start: today,
-          end: today,
-        );
+        final expenses = expensesByBudget[budgetId] ?? const [];
         final spendingByCategory = <int, double>{};
         for (final expense in expenses) {
+          final amount = (expense['amount'] as num?)?.toDouble() ?? 0;
           final categoryId = (expense['categoryId'] as num?)?.toInt();
           if (categoryId == null) continue;
-          final amount = (expense['amount'] as num?)?.toDouble() ?? 0;
           spendingByCategory[categoryId] =
               (spendingByCategory[categoryId] ?? 0) + amount;
-          todaySpent += amount;
         }
         final groupedCategories = <String, _HomeCategorySummary>{};
         for (final category in categories) {
@@ -94,13 +113,20 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _budgets = budgets;
         _todayCategories = todayCategories;
+        _recentExpenses = recentExpenses.take(5).toList();
         _todaySpent = todaySpent;
+        _totalSpent = totalSpent;
         _isLoading = false;
       });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  bool _isSameDate(DateTime first, DateTime second) =>
+      first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
 
   String _displayCategoryName(String name) {
     final value = name.toLowerCase();
@@ -284,21 +310,24 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _Header(name: _firstName, onLogout: _logout),
                 const SizedBox(height: 12),
-                _BudgetHero(total: total, isLoading: _isLoading),
+                _BudgetHero(
+                  total: total,
+                  spent: _totalSpent ?? 0,
+                  isLoading: _isLoading,
+                ),
                 const SizedBox(height: 8),
                 _TodayCard(amount: _todaySpent),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(13),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF1E5),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: _QuickAction(
-                          icon: Icons.add,
+                          icon: Icons.receipt_long_rounded,
                           label: 'Quick expense',
                           onTap: () => _openQuickExpense(),
                         ),
@@ -306,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _QuickAction(
-                          icon: Icons.people_alt_outlined,
+                          icon: Icons.groups_2_outlined,
                           label: 'Shared budgets',
                           onTap: widget.onNavigate == null
                               ? () => Navigator.push(
@@ -323,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _QuickAction(
-                          icon: Icons.bar_chart_rounded,
+                          icon: Icons.work_outline_rounded,
                           label: 'Find gigs',
                           onTap: widget.onNavigate == null
                               ? () => Navigator.push(
@@ -343,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 _QuickAdd(onTap: _openQuickExpense),
                 const SizedBox(height: 8),
-                const _RecentCard(),
+                _RecentCard(expenses: _recentExpenses),
               ],
             ),
           ),
@@ -585,6 +614,78 @@ class _HomeCategorySummary {
   });
 }
 
+class _RecentExpense {
+  final String title;
+  final String category;
+  final String merchant;
+  final double amount;
+  final IconData icon;
+  final Color color;
+
+  const _RecentExpense({
+    required this.title,
+    required this.category,
+    required this.merchant,
+    required this.amount,
+    required this.icon,
+    required this.color,
+  });
+
+  factory _RecentExpense.fromJson(Map<String, dynamic> json) {
+    final rawCategory = json['categoryName']?.toString() ?? 'Other';
+    final category = _recentDisplayCategory(rawCategory);
+    return _RecentExpense(
+      title: json['name']?.toString().trim().isNotEmpty == true
+          ? json['name'].toString()
+          : category,
+      category: category,
+      merchant: json['merchant']?.toString() ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      icon: _recentCategoryIcon(category),
+      color: _recentCategoryColor(category),
+    );
+  }
+}
+
+String _recentDisplayCategory(String name) {
+  final value = name.toLowerCase();
+  if (value.contains('food') || value.contains('eating')) return 'Food';
+  if (value.contains('transport') || value.contains('travel')) return 'Transport';
+  if (value.contains('bill') || value.contains('utility')) return 'Bills';
+  if (value.contains('grocery') || value.contains('groceries')) return 'Groceries';
+  return name;
+}
+
+IconData _recentCategoryIcon(String category) {
+  switch (category) {
+    case 'Food':
+      return Icons.restaurant_rounded;
+    case 'Transport':
+      return Icons.directions_bus_rounded;
+    case 'Bills':
+      return Icons.receipt_long_rounded;
+    case 'Groceries':
+      return Icons.shopping_basket_rounded;
+    default:
+      return Icons.payments_outlined;
+  }
+}
+
+Color _recentCategoryColor(String category) {
+  switch (category) {
+    case 'Food':
+      return const Color(0xFFF47C20);
+    case 'Transport':
+      return const Color(0xFF5A8DEE);
+    case 'Bills':
+      return const Color(0xFF8B5CF6);
+    case 'Groceries':
+      return const Color(0xFF2CA879);
+    default:
+      return const Color(0xFF657596);
+  }
+}
+
 class _Header extends StatelessWidget {
   final String name;
   final VoidCallback onLogout;
@@ -630,12 +731,19 @@ class _Header extends StatelessWidget {
 
 class _BudgetHero extends StatelessWidget {
   final double total;
+  final double spent;
   final bool isLoading;
 
-  const _BudgetHero({required this.total, required this.isLoading});
+  const _BudgetHero({
+    required this.total,
+    required this.spent,
+    required this.isLoading,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final remaining = (total - spent).clamp(0, double.infinity).toDouble();
+    final progress = total <= 0 ? 0.0 : (spent / total).clamp(0.0, 1.0);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
@@ -659,7 +767,7 @@ class _BudgetHero extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            isLoading ? 'Loading...' : 'Rs ${total.toStringAsFixed(0)} left',
+            isLoading ? 'Loading...' : 'Rs ${remaining.toStringAsFixed(0)} left',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 25,
@@ -669,8 +777,8 @@ class _BudgetHero extends StatelessWidget {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: const LinearProgressIndicator(
-              value: 0,
+            child: LinearProgressIndicator(
+              value: progress,
               minHeight: 7,
               backgroundColor: Color(0xFFDDE3F3),
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF47C20)),
@@ -678,7 +786,7 @@ class _BudgetHero extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Rs 0 used of Rs ${total.toStringAsFixed(0)}',
+            'Rs ${spent.toStringAsFixed(0)} used of Rs ${total.toStringAsFixed(0)}',
             style: const TextStyle(color: Colors.white70, fontSize: 11),
           ),
           const SizedBox(height: 3),
@@ -750,30 +858,35 @@ class _QuickAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(11),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 4),
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: const Color(0xFFFFD7B5),
-                child: Icon(icon, color: const Color(0xFFF47C20), size: 17),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF172C57),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(
+          height: 116,
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFFFD7B5),
+                  child: Icon(icon, color: const Color(0xFFF47C20), size: 21),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF172C57),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -957,48 +1070,30 @@ class _QuickCategoryButton extends StatelessWidget {
 }
 
 class _RecentCard extends StatelessWidget {
-  const _RecentCard();
+  final List<_RecentExpense> expenses;
+
+  const _RecentCard({required this.expenses});
 
   @override
   Widget build(BuildContext context) => _SectionCard(
     title: 'Recent',
-    child: Column(
-      children: const [
-        _RecentLine(
-          icon: Icons.restaurant,
-          title: 'Lunch',
-          category: 'Food',
-          amount: '-450',
-        ),
-        _RecentLine(
-          icon: Icons.directions_bus,
-          title: 'Bus fare',
-          category: 'Transport',
-          amount: '-80',
-        ),
-        _RecentLine(
-          icon: Icons.wifi,
-          title: 'Data plan',
-          category: 'Bills',
-          amount: '-1,200',
-        ),
-      ],
-    ),
+    child: expenses.isEmpty
+        ? const Text(
+            'No recent expenses recorded.',
+            style: TextStyle(color: Color(0xFF7890B8), fontSize: 11),
+          )
+        : Column(
+            children: expenses
+                .map((expense) => _RecentLine(expense: expense))
+                .toList(),
+          ),
   );
 }
 
 class _RecentLine extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String category;
-  final String amount;
+  final _RecentExpense expense;
 
-  const _RecentLine({
-    required this.icon,
-    required this.title,
-    required this.category,
-    required this.amount,
-  });
+  const _RecentLine({required this.expense});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1007,8 +1102,8 @@ class _RecentLine extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundColor: const Color(0xFFE8ECFA),
-          child: Icon(icon, size: 17, color: const Color(0xFF5A8DEE)),
+          backgroundColor: expense.color.withOpacity(.12),
+          child: Icon(expense.icon, size: 17, color: expense.color),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1016,7 +1111,7 @@ class _RecentLine extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                expense.title,
                 style: const TextStyle(
                   color: Color(0xFF172C57),
                   fontSize: 12,
@@ -1024,14 +1119,16 @@ class _RecentLine extends StatelessWidget {
                 ),
               ),
               Text(
-                category,
+                expense.merchant.trim().isEmpty
+                    ? expense.category
+                    : '${expense.category} · ${expense.merchant}',
                 style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
               ),
             ],
           ),
         ),
         Text(
-          amount,
+          '-Rs ${expense.amount.toStringAsFixed(0)}',
           style: const TextStyle(
             color: Color(0xFF172C57),
             fontSize: 11,

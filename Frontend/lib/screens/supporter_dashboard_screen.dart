@@ -1,21 +1,125 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
-class SupporterDashboardScreen extends StatelessWidget {
-  const SupporterDashboardScreen({super.key});
-
+class SupporterDashboardScreen extends StatefulWidget {
   static const background = Color(0xFFE8ECFA);
   static const navy = Color(0xFF172C57);
   static const muted = Color(0xFF657596);
   static const green = Color(0xFF31AF70);
   static const orange = Color(0xFFF47C20);
 
+  final String token;
+
+  const SupporterDashboardScreen({super.key, required this.token});
+
+  @override
+  State<SupporterDashboardScreen> createState() =>
+      _SupporterDashboardScreenState();
+}
+
+class _SupporterDashboardScreenState extends State<SupporterDashboardScreen> {
+  double _income = 0;
+  double _expenses = 0;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSummary();
+  }
+
+  Future<void> _loadSummary() async {
+    try {
+      final applications = await ApiService.getMyGigApplications(
+        token: widget.token,
+      );
+      final budgets = await ApiService.getBudgets(token: widget.token);
+
+      var approvedIncome = 0.0;
+      for (final application in applications) {
+        if (application['status']?.toString().toUpperCase() != 'APPROVED') {
+          continue;
+        }
+        approvedIncome += _parseAmount(application['estimatedEarnings']);
+      }
+
+      var totalExpenses = 0.0;
+      for (final budget in budgets) {
+        final budgetId = (budget['id'] as num?)?.toInt();
+        if (budgetId == null) continue;
+        try {
+          final expenses = await ApiService.getExpenses(
+            token: widget.token,
+            budgetId: budgetId,
+          );
+          for (final expense in expenses) {
+            totalExpenses += (expense['amount'] as num?)?.toDouble() ?? 0;
+          }
+        } catch (_) {
+          // Keep the income total visible if an inaccessible budget is returned.
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _income = approvedIncome;
+        _expenses = totalExpenses;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  double _parseAmount(dynamic value) {
+    final text = value?.toString() ?? '';
+    final match = RegExp(r'\d[\d,]*(?:\.\d+)?').firstMatch(text);
+    if (match == null) return 0;
+    return double.tryParse(match.group(0)!.replaceAll(',', '')) ?? 0;
+  }
+
+  String _money(double value) => 'Rs ${value.toStringAsFixed(0)}';
+
+  String _signedMoney(double value) =>
+      value < 0 ? '-Rs ${value.abs().toStringAsFixed(0)}' : _money(value);
+
   @override
   Widget build(BuildContext context) {
+    final net = _income - _expenses;
+    final combined = _income + _expenses;
+    final progress = combined <= 0
+        ? 0.0
+        : (_income / combined).clamp(0.0, 1.0).toDouble();
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: SupporterDashboardScreen.background,
       body: SafeArea(
         bottom: false,
-        child: ListView(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: _loadSummary,
+                        child: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             Row(
@@ -31,7 +135,7 @@ class SupporterDashboardScreen extends StatelessWidget {
                       height: 36,
                       child: Icon(
                         Icons.arrow_back,
-                        color: navy,
+                        color: SupporterDashboardScreen.navy,
                         size: 20,
                       ),
                     ),
@@ -42,7 +146,7 @@ class SupporterDashboardScreen extends StatelessWidget {
                   child: Text(
                     'Supporter Dashboard',
                     style: TextStyle(
-                      color: navy,
+                      color: SupporterDashboardScreen.navy,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
@@ -51,8 +155,10 @@ class SupporterDashboardScreen extends StatelessWidget {
                 OutlinedButton(
                   onPressed: () {},
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: navy,
-                    side: const BorderSide(color: navy),
+                    foregroundColor: SupporterDashboardScreen.navy,
+                    side: const BorderSide(
+                      color: SupporterDashboardScreen.navy,
+                    ),
                     minimumSize: const Size(76, 32),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     shape: RoundedRectangleBorder(
@@ -68,23 +174,29 @@ class SupporterDashboardScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            const _MonthlyCard(),
+            _MonthlyCard(
+              net: _signedMoney(net),
+              progress: progress,
+              status: net >= 0
+                  ? 'Income exceeds your expenses'
+                  : 'Expenses exceed your income',
+            ),
             const SizedBox(height: 12),
-            const Row(
+            Row(
               children: [
                 Expanded(
                   child: _MetricCard(
                     label: 'INCOME',
-                    amount: 'Rs 34,000',
-                    amountColor: green,
+                    amount: _money(_income),
+                    amountColor: SupporterDashboardScreen.green,
                   ),
                 ),
                 SizedBox(width: 10),
                 Expanded(
                   child: _MetricCard(
                     label: 'EXPENSES',
-                    amount: 'Rs 28,500',
-                    amountColor: navy,
+                    amount: _money(_expenses),
+                    amountColor: SupporterDashboardScreen.navy,
                   ),
                 ),
               ],
@@ -97,8 +209,11 @@ class SupporterDashboardScreen extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: () {},
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: navy,
-                  side: const BorderSide(color: navy, width: 1.4),
+                  foregroundColor: SupporterDashboardScreen.navy,
+                  side: const BorderSide(
+                    color: SupporterDashboardScreen.navy,
+                    width: 1.4,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(11),
                   ),
@@ -118,7 +233,15 @@ class SupporterDashboardScreen extends StatelessWidget {
 }
 
 class _MonthlyCard extends StatelessWidget {
-  const _MonthlyCard();
+  final String net;
+  final double progress;
+  final String status;
+
+  const _MonthlyCard({
+    required this.net,
+    required this.progress,
+    required this.status,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -136,8 +259,8 @@ class _MonthlyCard extends StatelessWidget {
             style: TextStyle(color: Color(0xFFC8D3EA), fontSize: 11),
           ),
           const SizedBox(height: 5),
-          const Text(
-            'Rs 5,500',
+          Text(
+            net,
             style: TextStyle(
               color: Colors.white,
               fontSize: 23,
@@ -147,8 +270,8 @@ class _MonthlyCard extends StatelessWidget {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: const LinearProgressIndicator(
-              value: .7,
+            child: LinearProgressIndicator(
+              value: progress,
               minHeight: 6,
               backgroundColor: Color(0xFFD4DDEF),
               valueColor: AlwaysStoppedAnimation<Color>(
@@ -157,8 +280,8 @@ class _MonthlyCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 9),
-          const Text(
-            'Income exceeds your expenses',
+          Text(
+            status,
             style: TextStyle(color: Color(0xFFC8D3EA), fontSize: 10),
           ),
         ],

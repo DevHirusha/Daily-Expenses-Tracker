@@ -8,6 +8,7 @@ class GigApplication {
   final int id;
   final int gigId;
   final String gigTitle;
+  final String estimatedEarnings;
   final String companyName;
   final String location;
   final String? applicationDeadline;
@@ -20,6 +21,7 @@ class GigApplication {
     required this.id,
     required this.gigId,
     required this.gigTitle,
+    required this.estimatedEarnings,
     required this.companyName,
     required this.location,
     this.applicationDeadline,
@@ -34,6 +36,7 @@ class GigApplication {
       id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
       gigId: int.tryParse(json['gigId']?.toString() ?? '') ?? 0,
       gigTitle: json['gigTitle']?.toString() ?? 'Gig application',
+      estimatedEarnings: json['estimatedEarnings']?.toString() ?? '',
       companyName: json['companyName']?.toString() ?? 'Company',
       location: json['location']?.toString() ?? 'Flexible location',
       applicationDeadline: json['applicationDeadline']?.toString(),

@@ -37,7 +37,7 @@ public class ExpenseServiceImpl implements ExpenseService {
     @Transactional(readOnly = true)
     public List<ExpenseResponse> getExpenses(String email, Long budgetId, Long categoryId, LocalDate start, LocalDate end) {
         UserEntity owner = findUser(email);
-        BudgetEntity budget = findOwnedBudget(owner, budgetId);
+        BudgetEntity budget = findAccessibleBudget(owner, budgetId);
         LocalDate periodStart = start == null ? defaultStart(budget) : start;
         LocalDate periodEnd = end == null ? defaultEnd(budget, periodStart) : end;
         List<ExpenseEntity> expenses;
@@ -160,6 +160,16 @@ public class ExpenseServiceImpl implements ExpenseService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Budget not found"));
         if (!budget.getOwner().getId().equals(owner.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the budget owner can manage expenses");
+        }
+        return budget;
+    }
+
+    private BudgetEntity findAccessibleBudget(UserEntity viewer, Long budgetId) {
+        BudgetEntity budget = budgetRepository.findById(budgetId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Budget not found"));
+        if (!budget.getOwner().getId().equals(viewer.getId())
+                && !budget.getMemberUserIds().contains(viewer.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this budget");
         }
         return budget;
     }
