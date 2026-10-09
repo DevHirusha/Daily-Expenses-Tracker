@@ -6,6 +6,7 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AdminUserUpdateRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.Role;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GigApplicationRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -28,6 +30,7 @@ import java.util.UUID;
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final GigApplicationRepository applicationRepository;
     private final PasswordEncoder passwordEncoder;
 
     // Get all users
@@ -186,6 +189,7 @@ public class AdminController {
 
     // Delete user
     @DeleteMapping("/users/{id}")
+    @Transactional
     public ResponseEntity<?> deleteUser(
             @PathVariable Long id,
             Authentication authentication
@@ -201,6 +205,7 @@ public class AdminController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a super admin can delete a super admin");
         }
 
+        applicationRepository.deleteAllByApplicant_Id(id);
         userRepository.delete(user);
 
         return ResponseEntity.ok("Deleted");

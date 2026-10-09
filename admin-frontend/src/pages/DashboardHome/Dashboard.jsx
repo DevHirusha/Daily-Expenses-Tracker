@@ -5,6 +5,7 @@ import {
   Users,
   Megaphone,
   Briefcase,
+  ClipboardList,
   User,
   Moon,
   Bell,
@@ -101,6 +102,19 @@ const Dashboard = () => {
             >
               <Briefcase size={20} />
               <span className="text-sm font-medium">Gigs Management</span>
+            </li>
+
+            {/* Gig Applications */}
+            <li
+              onClick={() => navigate("/dashboard/gig-applications")}
+              className={`flex items-center gap-4 rounded-md px-4 py-3 cursor-pointer transition-colors ${
+                activeTab === "gig-applications"
+                  ? "bg-[#141B2D]/50 text-yellow-600"
+                  : "text-gray-300 hover:bg-[#141B2D]/30"
+              }`}
+            >
+              <ClipboardList size={20} />
+              <span className="text-sm font-medium">Gig Applications</span>
             </li>
 
             {/* Announcement Management */}

@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "tbl_gigs")
@@ -46,6 +47,9 @@ public class GigEntity {
 
     @Column(length = 30)
     private String companyPhoneNumber;
+
+    @Column
+    private LocalDate applicationDeadline;
 
     @Lob
     @Column(columnDefinition = "LONGTEXT")

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'api_client.dart';
+
 class ApiService {
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
@@ -53,6 +55,62 @@ class ApiService {
       token: token,
     );
     return _mapList(result);
+  }
+
+  // ---------- GIG APPLICATIONS ----------
+  static Future<List<Map<String, dynamic>>> getMyGigApplications({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/gig-applications'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
+  static Future<Map<String, dynamic>> createGigApplication({
+    required String token,
+    required int gigId,
+    String? note,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/gig-applications'),
+      token: token,
+      payload: {
+        'gigId': gigId,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateGigApplication({
+    required String token,
+    required int applicationId,
+    String? note,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/gig-applications/$applicationId'),
+      token: token,
+      payload: {
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<void> deleteGigApplication({
+    required String token,
+    required int applicationId,
+  }) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/gig-applications/$applicationId'),
+      token: token,
+    );
   }
 
   // ---------- FRIENDS ----------
@@ -792,11 +850,15 @@ class ApiService {
     required String token,
     Map<String, dynamic>? payload,
   }) async {
-    final client = http.Client();
+    final client = createApiClient();
     try {
+      final normalizedToken = token.trim();
+      if (normalizedToken.isEmpty) {
+        throw Exception('Your session has expired. Please log in again.');
+      }
       final request = http.Request(method, url)
         ..headers['Content-Type'] = 'application/json'
-        ..headers['Authorization'] = 'Bearer $token';
+        ..headers['Authorization'] = 'Bearer $normalizedToken';
       if (payload != null) {
         request.body = jsonEncode(payload);
       }
@@ -819,6 +881,9 @@ class ApiService {
               message;
         }
       } catch (_) {}
+      if (body.statusCode == 401) {
+        message = 'Your session has expired. Please log in again.';
+      }
       throw Exception(message);
     } on http.ClientException {
       throw Exception('Cannot reach server. Is backend running on port 8080?');
