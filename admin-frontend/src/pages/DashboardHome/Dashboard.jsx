@@ -3,8 +3,8 @@ import {
   Menu,
   Home,
   Users,
-  Contact,
-  FileText,
+  Megaphone,
+  Briefcase,
   User,
   Moon,
   Bell,
@@ -90,32 +90,6 @@ const Dashboard = () => {
               <span className="text-sm font-medium">Manage Users</span>
             </li>
 
-            {/* Budget Management */}
-            <li
-              onClick={() => navigate("/dashboard/budget")}
-              className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
-                activeTab === "budget"
-                  ? "text-yellow-600 bg-[#141B2D]/50"
-                  : "text-gray-300 hover:bg-[#141B2D]/30"
-              }`}
-            >
-              <Contact size={20} />
-              <span className="text-sm font-medium">Budget Management</span>
-            </li>
-
-            {/* Expenses Management */}
-            <li
-              onClick={() => navigate("/dashboard/expenses")}
-              className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
-                activeTab === "expenses"
-                  ? "text-yellow-600 bg-[#141B2D]/50"
-                  : "text-gray-300 hover:bg-[#141B2D]/30"
-              }`}
-            >
-              <FileText size={20} />
-              <span className="text-sm font-medium">Expenses Management</span>
-            </li>
-
             {/* Gigs Management */}
             <li
               onClick={() => navigate("/dashboard/gigs")}
@@ -125,8 +99,21 @@ const Dashboard = () => {
                   : "text-gray-300 hover:bg-[#141B2D]/30"
               }`}
             >
-              <FileText size={20} />
+              <Briefcase size={20} />
               <span className="text-sm font-medium">Gigs Management</span>
+            </li>
+
+            {/* Announcement Management */}
+            <li
+              onClick={() => navigate("/dashboard/announcements")}
+              className={`flex items-center gap-4 px-4 py-3 rounded-md cursor-pointer transition-colors ${
+                activeTab === "announcements"
+                  ? "text-yellow-600 bg-[#141B2D]/50"
+                  : "text-gray-300 hover:bg-[#141B2D]/30"
+              }`}
+            >
+              <Megaphone size={20} />
+              <span className="text-sm font-medium">Announcements</span>
             </li>
 
             <li className="px-4 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider mt-4">
