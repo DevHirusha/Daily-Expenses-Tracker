@@ -81,13 +81,34 @@ class _BudgetDashboardScreenState extends State<BudgetDashboardScreen> {
         token: widget.token,
         budgetId: budgetId,
       );
+      final expenses = await ApiService.getExpenses(
+        token: widget.token,
+        budgetId: budgetId,
+      );
+      final spentByCategory = <int, double>{};
+      for (final expense in expenses) {
+        final categoryId = (expense['categoryId'] as num?)?.toInt();
+        if (categoryId == null) continue;
+        final amount = (expense['amount'] as num?)?.toDouble() ?? 0;
+        spentByCategory[categoryId] =
+            (spentByCategory[categoryId] ?? 0) + amount;
+      }
+      final loadedCategories = categories.map((category) {
+        final categoryId = (category['id'] as num?)?.toInt();
+        return _BudgetCategory.fromJson(
+          category,
+          spentOverride: categoryId == null
+              ? null
+              : spentByCategory[categoryId] ?? 0,
+        );
+      }).toList();
       if (!mounted) return;
       setState(() {
         _budgetId = budgetId;
         _budgetName = budget['name']?.toString() ?? _budgetName;
         _monthlyBudget =
             (budget['amount'] as num?)?.toDouble() ?? _monthlyBudget;
-        _categories = categories.map(_BudgetCategory.fromJson).toList();
+        _categories = loadedCategories;
         _isLoading = false;
         _loadError = null;
       });
@@ -1204,7 +1225,10 @@ class _BudgetCategory {
     required this.color,
   });
 
-  factory _BudgetCategory.fromJson(Map<String, dynamic> json) {
+  factory _BudgetCategory.fromJson(
+    Map<String, dynamic> json, {
+    double? spentOverride,
+  }) {
     final name = json['name']?.toString() ?? 'Category';
     final lower = name.toLowerCase();
     final icon = lower.contains('transport')
@@ -1222,7 +1246,7 @@ class _BudgetCategory {
     return _BudgetCategory(
       id: (json['id'] as num?)?.toInt(),
       name: name,
-      spent: (json['spentAmount'] as num?)?.toDouble() ?? 0,
+      spent: spentOverride ?? (json['spentAmount'] as num?)?.toDouble() ?? 0,
       limit: (json['limitAmount'] as num?)?.toDouble() ?? 0,
       icon: icon,
       color: color,
@@ -1499,7 +1523,9 @@ class _CategoryBudgetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final over = category.spent > category.limit;
     final difference = (category.limit - category.spent).abs();
-    final progress = (category.spent / category.limit).clamp(0.0, 1.0);
+    final progress = category.limit <= 0
+        ? 0.0
+        : (category.spent / category.limit).clamp(0.0, 1.0);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
