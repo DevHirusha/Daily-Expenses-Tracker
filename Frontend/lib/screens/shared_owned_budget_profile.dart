@@ -34,8 +34,22 @@ class _SharedOwnedBudgetProfileScreenState
 
   double get _amount => (widget.budget['amount'] as num?)?.toDouble() ?? 0;
 
-  double get _ownerShareAmount =>
-      _members.isEmpty ? 0 : _amount / (_members.length + 1);
+  double get _ownerPercentage {
+    final fixedTotal = _percentageOverrides.values.fold<double>(
+      0,
+      (sum, percentage) => sum + percentage,
+    );
+    final flexibleMembers = _members.where(
+      (member) =>
+          member['role']?.toString() != 'OWNER' &&
+          !_percentageOverrides.containsKey(member['userId']?.toString()),
+    ).length;
+    final flexibleParticipants = flexibleMembers + 1;
+    return (100 - fixedTotal).clamp(0, 100).toDouble() /
+        flexibleParticipants;
+  }
+
+  double get _ownerShareAmount => _amount * _ownerPercentage / 100;
 
   double _value(Map<String, dynamic> item, String key) =>
       (item[key] as num?)?.toDouble() ?? 0;
@@ -844,7 +858,7 @@ class _MemberShareList extends StatelessWidget {
     );
     final equalPercentage = flexibleMembers.isEmpty
         ? 0
-        : remainingPercentage / flexibleMembers.length;
+      : remainingPercentage / (flexibleMembers.length + 1);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -879,9 +893,7 @@ class _MemberShareList extends StatelessWidget {
             final paid = settlement == null
                 ? 0
                 : (settlement['amount'] as num?)?.toDouble() ?? 0;
-            final remaining = settlement == null
-                ? share
-                : (settlement['remainingAmount'] as num?)?.toDouble() ?? share;
+            final remaining = (share - paid).clamp(0, share).toDouble();
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(

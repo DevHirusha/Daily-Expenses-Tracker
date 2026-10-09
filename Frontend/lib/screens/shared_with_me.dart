@@ -179,7 +179,7 @@ class _SharedWithMeScreenState extends State<SharedWithMeScreen> {
       (item) => !overrides.containsKey(item['userId']?.toString()),
     );
     final fixed = overrides.values.fold<double>(0, (sum, value) => sum + value);
-    return flexible.isEmpty ? 0 : (100 - fixed) / flexible.length;
+    return flexible.isEmpty ? 0 : (100 - fixed) / (flexible.length + 1);
   }
 
   String _date(String key) {

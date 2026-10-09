@@ -6,11 +6,12 @@ class ApiService {
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
       ? const String.fromEnvironment('API_BASE_URL')
-      : 'http://localhost:3030/api/v1.0';
+      : 'http://localhost:8080/api/v1.0';
 
   // Local development URLs:
-  // Web/desktop: http://localhost:3030/api/v1.0
-  // Android emulator: http://10.0.2.2:3030/api/v1.0
+  // Flutter web/desktop/iOS simulator: http://localhost:8080/api/v1.0
+  // Android emulator: http://10.0.2.2:8080/api/v1.0
+  // Physical device: use --dart-define=API_BASE_URL=http://YOUR_PC_IP:8080/api/v1.0
 
   // Render backend URL:
   // https://daily-expenses-tracker-g3l0.onrender.com/api/v1.0
@@ -667,7 +668,7 @@ class ApiService {
       } catch (_) {}
       throw Exception(message);
     } on http.ClientException {
-      throw Exception('Cannot reach server. Is backend running on port 3030?');
+      throw Exception('Cannot reach server. Is backend running on port 8080?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
     } on Exception catch (e) {
@@ -714,7 +715,7 @@ class ApiService {
       } catch (_) {}
       throw Exception(message);
     } on http.ClientException {
-      throw Exception('Cannot reach server. Is backend running on port 3030?');
+      throw Exception('Cannot reach server. Is backend running on port 8080?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
     } on Exception catch (e) {
@@ -763,7 +764,7 @@ class ApiService {
       throw Exception(message);
     } on http.ClientException catch (e) {
       print('SOCKET ERROR: $e');
-      throw Exception('Cannot reach server. Is backend running on port 3030?');
+      throw Exception('Cannot reach server. Is backend running on port 8080?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
     } on FormatException catch (e) {
@@ -808,7 +809,7 @@ class ApiService {
       } catch (_) {}
       throw Exception(message);
     } on http.ClientException {
-      throw Exception('Cannot reach server. Is backend running on port 3030?');
+      throw Exception('Cannot reach server. Is backend running on port 8080?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
     } finally {

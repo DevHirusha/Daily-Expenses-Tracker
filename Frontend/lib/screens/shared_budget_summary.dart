@@ -440,7 +440,7 @@ class _BudgetBreakdown {
     final fixedTotal = overrides.values.fold<double>(0, (sum, value) => sum + value);
     final flexible = members.where(
       (item) => !overrides.containsKey(item['userId']?.toString()),
-    ).length;
+    ).length + 1;
     final userId = member['userId']?.toString() ?? '';
     final percentage = overrides[userId] ??
         (flexible == 0 ? 0 : (100 - fixedTotal) / flexible);
