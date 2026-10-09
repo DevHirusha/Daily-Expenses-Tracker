@@ -1,10 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/api_service.dart';
 import 'gig_details_screen.dart';
 import 'supporter_dashboard_screen.dart';
 
 class FindGigsScreen extends StatefulWidget {
-  const FindGigsScreen({super.key});
+  final String token;
+
+  const FindGigsScreen({super.key, required this.token});
 
   @override
   State<FindGigsScreen> createState() => _FindGigsScreenState();
@@ -16,44 +21,40 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
   static const _mutedNavy = Color(0xFF657596);
   static const _orange = Color(0xFFF47C20);
 
-  final _filters = const ['All', 'Delivery', 'Retail', 'Remote'];
+  final _filters = const ['All', 'ONLINE', 'HYBRID', 'ONSITE'];
   int _selectedFilter = 0;
+  List<_Gig> _gigs = const [];
+  final Set<int> _appliedGigIds = <int>{};
+  bool _isLoading = true;
+  String? _error;
 
-  final _gigs = const [
-    _Gig(
-      title: 'Delivery rider',
-      company: 'QuickBite Ltd',
-      pay: 'Rs 1,800/day',
-      location: 'Colombo 5',
-      type: 'Part-time',
-      posted: 'Posted 2h ago',
-      category: 'Delivery',
-      icon: Icons.two_wheeler,
-      iconColor: Color(0xFFF58220),
-    ),
-    _Gig(
-      title: 'Weekend cashier',
-      company: 'MainStreet Retail',
-      pay: 'Rs 1,200/day',
-      location: 'Nugegoda',
-      type: 'Weekends',
-      posted: 'Posted 1d ago',
-      category: 'Retail',
-      icon: Icons.storefront,
-      iconColor: Color(0xFF1A315D),
-    ),
-    _Gig(
-      title: 'Data entry remote',
-      company: 'Dexter Enterprises',
-      pay: 'Rs 900/day',
-      location: 'Remote',
-      type: 'Flexible',
-      posted: 'Posted 2d ago',
-      category: 'Remote',
-      icon: Icons.computer,
-      iconColor: Color(0xFF6C789B),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadGigs();
+  }
+
+  Future<void> _loadGigs() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final rows = await ApiService.getGigs(token: widget.token);
+      final gigs = rows.map(_Gig.fromJson).toList();
+      if (!mounted) return;
+      setState(() {
+        _gigs = gigs;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +84,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
               _buildFilterBar(),
               const SizedBox(height: 18),
               const Text(
-                'Opportunities near Colombo',
+                'Available opportunities',
                 style: TextStyle(
                   color: _navy,
                   fontSize: 16,
@@ -92,7 +93,31 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (visibleGigs.isEmpty)
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 48),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 36),
+                  child: Column(
+                    children: [
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: _mutedNavy, fontSize: 13),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _loadGigs,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (visibleGigs.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 48),
                   child: Center(
@@ -108,7 +133,13 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
                     padding: const EdgeInsets.only(bottom: 9),
                     child: _GigCard(
                       gig: gig,
-                      onDetails: () => _openGigDetails(gig),
+                      onDetails: () {
+                        _openGigDetails(gig);
+                      },
+                      onApply: () {
+                        _applyToGig(gig);
+                      },
+                      isApplied: gig.id != null && _appliedGigIds.contains(gig.id),
                     ),
                   ),
                 ),
@@ -196,8 +227,8 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
     );
   }
 
-  void _openGigDetails(_Gig gig) {
-    Navigator.push(
+  Future<void> _openGigDetails(_Gig gig) async {
+    final applied = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => GigDetailsScreen(
@@ -206,7 +237,38 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
           pay: gig.pay,
           location: gig.location,
           type: gig.type,
+          description: gig.description,
+          requirements: gig.requirements,
+          companyPhoneNumber: gig.companyPhoneNumber,
+          imageData: gig.imageData,
         ),
+      ),
+    );
+    _markGigAsApplied(gig, applied == true);
+  }
+
+  Future<void> _applyToGig(_Gig gig) async {
+    if (gig.id != null && _appliedGigIds.contains(gig.id)) return;
+
+    final applied = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ApplyContactScreen(
+          company: gig.company,
+          location: gig.location,
+        ),
+      ),
+    );
+    _markGigAsApplied(gig, applied == true);
+  }
+
+  void _markGigAsApplied(_Gig gig, bool applied) {
+    if (!applied || gig.id == null || !mounted) return;
+    setState(() => _appliedGigIds.add(gig.id!));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Application submitted.'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -329,8 +391,15 @@ class _SummaryCard extends StatelessWidget {
 class _GigCard extends StatelessWidget {
   final _Gig gig;
   final VoidCallback onDetails;
+  final VoidCallback onApply;
+  final bool isApplied;
 
-  const _GigCard({required this.gig, required this.onDetails});
+  const _GigCard({
+    required this.gig,
+    required this.onDetails,
+    required this.onApply,
+    required this.isApplied,
+  });
 
   static const navy = Color(0xFF172C57);
   static const mutedNavy = Color(0xFF71809F);
@@ -358,7 +427,7 @@ class _GigCard extends StatelessWidget {
                       color: gig.iconColor,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(gig.icon, color: Colors.white, size: 21),
+                    child: _GigAvatar(gig: gig),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -416,9 +485,11 @@ class _GigCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    gig.posted,
-                    style: const TextStyle(color: mutedNavy, fontSize: 11),
+                  Expanded(
+                    child: Text(
+                      gig.posted,
+                      style: const TextStyle(color: mutedNavy, fontSize: 11),
+                    ),
                   ),
                   InkWell(
                     onTap: onDetails,
@@ -431,6 +502,32 @@ class _GigCard extends StatelessWidget {
                           color: orange,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 32,
+                    child: FilledButton.icon(
+                      onPressed: isApplied ? null : onApply,
+                      icon: Icon(
+                        isApplied ? Icons.check : Icons.send_outlined,
+                        size: 14,
+                      ),
+                      label: Text(isApplied ? 'Applied' : 'Apply'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: orange,
+                        disabledBackgroundColor: const Color(0xFFB6BED0),
+                        foregroundColor: Colors.white,
+                        disabledForegroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        textStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
                         ),
                       ),
                     ),
@@ -471,6 +568,7 @@ class _Tag extends StatelessWidget {
 }
 
 class _Gig {
+  final int? id;
   final String title;
   final String company;
   final String pay;
@@ -478,10 +576,15 @@ class _Gig {
   final String type;
   final String posted;
   final String category;
+  final String description;
+  final String requirements;
+  final String companyPhoneNumber;
   final IconData icon;
   final Color iconColor;
+  final String? imageData;
 
   const _Gig({
+    this.id,
     required this.title,
     required this.company,
     required this.pay,
@@ -489,7 +592,97 @@ class _Gig {
     required this.type,
     required this.posted,
     required this.category,
+    this.description = '',
+    this.requirements = '',
+    this.companyPhoneNumber = '',
     required this.icon,
     required this.iconColor,
+    this.imageData,
   });
+
+  factory _Gig.fromJson(Map<String, dynamic> json) {
+    final category = json['category']?.toString().toUpperCase() ?? 'ONLINE';
+    final createdAt = DateTime.tryParse(json['createdAt']?.toString() ?? '');
+    final posted = createdAt == null
+        ? 'Recently posted'
+        : 'Posted ${_relativeTime(createdAt)}';
+    return _Gig(
+      id: int.tryParse(json['id']?.toString() ?? ''),
+      title: json['title']?.toString() ?? 'Untitled gig',
+      company: json['companyName']?.toString().trim().isNotEmpty == true
+          ? json['companyName'].toString()
+          : json['createdByName']?.toString() ?? 'Company',
+      pay: json['estimatedEarnings']?.toString() ?? 'Payment not specified',
+      location: json['location']?.toString().trim().isNotEmpty == true
+          ? json['location'].toString()
+          : 'Flexible location',
+      type: category,
+      posted: posted,
+      category: category,
+      description: json['description']?.toString() ?? '',
+      requirements: json['requirements']?.toString() ?? '',
+      companyPhoneNumber: json['companyPhoneNumber']?.toString() ?? '',
+      icon: _iconFor(category),
+      iconColor: _colorFor(category),
+      imageData: json['imageData']?.toString(),
+    );
+  }
+
+  static String _relativeTime(DateTime createdAt) {
+    final difference = DateTime.now().difference(createdAt.toLocal());
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    return '${difference.inDays}d ago';
+  }
+
+  static IconData _iconFor(String category) {
+    switch (category) {
+      case 'ONSITE':
+        return Icons.storefront;
+      case 'HYBRID':
+        return Icons.sync_alt;
+      default:
+        return Icons.computer;
+    }
+  }
+
+  static Color _colorFor(String category) {
+    switch (category) {
+      case 'ONSITE':
+        return const Color(0xFFF58220);
+      case 'HYBRID':
+        return const Color(0xFF1A315D);
+      default:
+        return const Color(0xFF6C789B);
+    }
+  }
+}
+
+class _GigAvatar extends StatelessWidget {
+  final _Gig gig;
+
+  const _GigAvatar({required this.gig});
+
+  @override
+  Widget build(BuildContext context) {
+    final imageData = gig.imageData;
+    if (imageData != null && imageData.isNotEmpty) {
+      try {
+        final encoded = imageData.contains(',')
+            ? imageData.substring(imageData.indexOf(',') + 1)
+            : imageData;
+        return ClipOval(
+          child: Image.memory(
+            base64Decode(encoded),
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+          ),
+        );
+      } catch (_) {
+        // Fall back to the category icon when an image cannot be decoded.
+      }
+    }
+    return Icon(gig.icon, color: Colors.white, size: 21);
+  }
 }

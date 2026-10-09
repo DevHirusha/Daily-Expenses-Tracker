@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'Shared_expenses_dashboard.dart';
+import 'find_gigs_screen.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -320,10 +321,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Expanded(
+                      Expanded(
                         child: _QuickAction(
                           icon: Icons.bar_chart_rounded,
                           label: 'Find gigs',
+                          onTap: widget.onNavigate == null
+                              ? () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => FindGigsScreen(token: widget.token),
+                                  ),
+                                )
+                              : () => widget.onNavigate!(3),
                         ),
                       ),
                     ],

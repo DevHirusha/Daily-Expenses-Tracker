@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 class GigDetailsScreen extends StatelessWidget {
@@ -8,6 +10,10 @@ class GigDetailsScreen extends StatelessWidget {
     required this.pay,
     required this.location,
     required this.type,
+    this.description = '',
+    this.requirements = '',
+    this.companyPhoneNumber = '',
+    this.imageData,
   });
 
   final String title;
@@ -15,6 +21,10 @@ class GigDetailsScreen extends StatelessWidget {
   final String pay;
   final String location;
   final String type;
+  final String description;
+  final String requirements;
+  final String companyPhoneNumber;
+  final String? imageData;
 
   static const background = Color(0xFFE8ECFA);
   static const navy = Color(0xFF172C57);
@@ -37,44 +47,52 @@ class GigDetailsScreen extends StatelessWidget {
               location: location,
               type: type,
             ),
+            if (imageData != null && imageData!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _GigPhoto(imageData: imageData!),
+            ],
             const SizedBox(height: 12),
-            const _InfoCard(
+            _InfoCard(
               title: 'JOB DESCRIPTION',
               child: Text(
-                'Evening food delivering using your own bike.\n'
-                'Choose your shifts between 5 PM and 10 PM.\n'
-                'Flexible shifts allow you to coordinate with family\n'
-                'priorities easily.',
-                style: TextStyle(color: navy, fontSize: 13, height: 1.35),
+                description.isEmpty ? 'No description provided.' : description,
+                style: const TextStyle(color: navy, fontSize: 13, height: 1.35),
               ),
             ),
             const SizedBox(height: 12),
-            const _InfoCard(
+            _InfoCard(
               title: 'REQUIREMENTS',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Requirement(text: 'Valid driving licence'),
-                  _Requirement(text: 'Own motor vehicle (bike/scooter)'),
-                  _Requirement(text: 'Smartphone with internet connection'),
-                ],
-              ),
+              child: requirements.trim().isEmpty
+                  ? const Text('No specific requirements provided.')
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: requirements
+                          .split(RegExp(r'\r?\n'))
+                          .where((item) => item.trim().isNotEmpty)
+                          .map((item) => _Requirement(text: item.trim()))
+                          .toList(),
+                    ),
             ),
             const SizedBox(height: 12),
-            _EmployerCard(company: company),
+            _EmployerCard(company: company, phone: companyPhoneNumber),
             const SizedBox(height: 12),
             SizedBox(
               height: 50,
               child: FilledButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ApplyContactScreen(
-                      company: company,
-                      location: location,
+                onPressed: () async {
+                  final applied = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ApplyContactScreen(
+                        company: company,
+                        location: location,
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                  if (applied == true && context.mounted) {
+                    Navigator.pop(context, true);
+                  }
+                },
                 style: FilledButton.styleFrom(
                   backgroundColor: orange,
                   foregroundColor: Colors.white,
@@ -93,6 +111,32 @@ class GigDetailsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _GigPhoto extends StatelessWidget {
+  const _GigPhoto({required this.imageData});
+
+  final String imageData;
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      final encoded = imageData.contains(',')
+          ? imageData.substring(imageData.indexOf(',') + 1)
+          : imageData;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.memory(
+          base64Decode(encoded),
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
   }
 }
 
@@ -295,9 +339,10 @@ class _Chip extends StatelessWidget {
 }
 
 class _EmployerCard extends StatelessWidget {
-  const _EmployerCard({required this.company});
+  const _EmployerCard({required this.company, this.phone = ''});
 
   final String company;
+  final String phone;
 
   @override
   Widget build(BuildContext context) {
@@ -332,13 +377,28 @@ class _EmployerCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  company,
-                  style: const TextStyle(
-                    color: GigDetailsScreen.navy,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      company,
+                      style: const TextStyle(
+                        color: GigDetailsScreen.navy,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (phone.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        phone,
+                        style: const TextStyle(
+                          color: GigDetailsScreen.muted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const Column(
@@ -478,9 +538,7 @@ class _ApplyContactScreenState extends State<ApplyContactScreen> {
             SizedBox(
               height: 50,
               child: FilledButton(
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Application submitted.')),
-                ),
+                onPressed: () => Navigator.pop(context, true),
                 style: _orangeButton(),
                 child: const Text('Submit application'),
               ),

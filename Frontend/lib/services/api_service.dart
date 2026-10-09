@@ -43,6 +43,18 @@ class ApiService {
     }, tag: 'LOGIN');
   }
 
+  // ---------- GIGS ----------
+  static Future<List<Map<String, dynamic>>> getGigs({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/gigs'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
   // ---------- FRIENDS ----------
   static Future<List<Map<String, dynamic>>> searchUsers({
     required String token,
