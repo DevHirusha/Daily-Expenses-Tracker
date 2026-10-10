@@ -45,6 +45,32 @@ class ApiService {
     }, tag: 'LOGIN');
   }
 
+  // ---------- PROFILE ----------
+  static Future<Map<String, dynamic>> getProfile({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/profile'),
+      token: token,
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateProfile({
+    required String token,
+    required String name,
+    required String username,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/profile'),
+      token: token,
+      payload: {'name': name, 'username': username},
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
   // ---------- GIGS ----------
   static Future<List<Map<String, dynamic>>> getGigs({
     required String token,

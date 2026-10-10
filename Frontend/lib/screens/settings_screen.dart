@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'user_profile.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String email;
+  final String token;
 
-  const SettingsScreen({super.key, required this.email});
+  const SettingsScreen({super.key, required this.email, required this.token});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -11,13 +13,48 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _darkMode = false;
+  String? _profileName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileName();
+  }
+
+  Future<void> _loadProfileName() async {
+    final profile = await UserProfileScreen.loadProfile(widget.token);
+    if (mounted && profile != null) {
+      setState(() => _profileName = profile['name']?.toString());
+    }
+  }
+
+  Future<void> _openProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            UserProfileScreen(token: widget.token, fallbackEmail: widget.email),
+      ),
+    );
+    _loadProfileName();
+  }
 
   String get _displayName {
-    final value = widget.email.split('@').first.replaceAll(RegExp(r'[._-]'), ' ');
+    if (_profileName != null && _profileName!.trim().isNotEmpty) {
+      return _profileName!.trim();
+    }
+    final value = widget.email
+        .split('@')
+        .first
+        .replaceAll(RegExp(r'[._-]'), ' ');
     if (value.isEmpty) return 'Your profile';
     return value
         .split(' ')
-        .map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
         .join(' ');
   }
 
@@ -25,7 +62,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final textColor = _darkMode ? Colors.white : const Color(0xFF172C57);
     final mutedColor = _darkMode ? Colors.white70 : const Color(0xFF8B9BC1);
-    final background = _darkMode ? const Color(0xFF17233D) : const Color(0xFFE8ECFA);
+    final background = _darkMode
+        ? const Color(0xFF17233D)
+        : const Color(0xFFE8ECFA);
     final cardColor = _darkMode ? const Color(0xFF243452) : Colors.white;
 
     return Scaffold(
@@ -52,6 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _ProfileCard(
                 name: _displayName,
                 email: widget.email,
+                onTap: _openProfile,
                 background: cardColor,
                 textColor: textColor,
                 mutedColor: mutedColor,
@@ -64,9 +104,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textColor: textColor,
                 mutedColor: mutedColor,
                 rows: [
-                  _SettingData(Icons.person_outline, 'Personal Information', 'Manage your personal details & contacts'),
-                  _SettingData(Icons.shield_outlined, 'Security', 'Change password & manage security'),
-                  _SettingData(Icons.notifications_none, 'Notifications', 'Manage your alerts and reminders'),
+                  _SettingData(
+                    Icons.person_outline,
+                    'Personal Information',
+                    'Manage your personal details & contacts',
+                    onTap: _openProfile,
+                  ),
+                  _SettingData(
+                    Icons.shield_outlined,
+                    'Security',
+                    'Change password & manage security',
+                  ),
+                  _SettingData(
+                    Icons.notifications_none,
+                    'Notifications',
+                    'Manage your alerts and reminders',
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -77,9 +130,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textColor: textColor,
                 mutedColor: mutedColor,
                 rows: [
-                  _SettingData(Icons.palette_outlined, 'Appearance', 'Light / Dark mode and theme'),
-                  _SettingData(Icons.language, 'Language', 'Select your preferred language', trailing: 'English'),
-                  _SettingData(Icons.dark_mode_outlined, 'Dark Mode', 'Enable dark theme aesthetics', toggle: true),
+                  _SettingData(
+                    Icons.palette_outlined,
+                    'Appearance',
+                    'Light / Dark mode and theme',
+                  ),
+                  _SettingData(
+                    Icons.language,
+                    'Language',
+                    'Select your preferred language',
+                    trailing: 'English',
+                  ),
+                  _SettingData(
+                    Icons.dark_mode_outlined,
+                    'Dark Mode',
+                    'Enable dark theme aesthetics',
+                    toggle: true,
+                  ),
                 ],
                 onToggle: (index) {
                   if (index == 2) setState(() => _darkMode = !_darkMode);
@@ -94,8 +161,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textColor: textColor,
                 mutedColor: mutedColor,
                 rows: [
-                  _SettingData(Icons.headset_mic_outlined, 'Help & Support', 'Get help or contact us'),
-                  _SettingData(Icons.description_outlined, 'Terms & Privacy', 'Read our terms and privacy policy'),
+                  _SettingData(
+                    Icons.headset_mic_outlined,
+                    'Help & Support',
+                    'Get help or contact us',
+                  ),
+                  _SettingData(
+                    Icons.description_outlined,
+                    'Terms & Privacy',
+                    'Read our terms and privacy policy',
+                  ),
                 ],
               ),
             ],
@@ -112,37 +187,80 @@ class _ProfileCard extends StatelessWidget {
   final Color background;
   final Color textColor;
   final Color mutedColor;
+  final VoidCallback onTap;
 
-  const _ProfileCard({required this.name, required this.email, required this.background, required this.textColor, required this.mutedColor});
+  const _ProfileCard({
+    required this.name,
+    required this.email,
+    required this.onTap,
+    required this.background,
+    required this.textColor,
+    required this.mutedColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final initials = name.trim().isEmpty ? 'U' : name.trim().split(' ').map((part) => part[0]).take(2).join().toUpperCase();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(19)),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: const Color(0xFFF47C20),
-            child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold)),
+    final initials = name.trim().isEmpty
+        ? 'U'
+        : name
+              .trim()
+              .split(' ')
+              .map((part) => part[0])
+              .take(2)
+              .join()
+              .toUpperCase();
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(19),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 25,
+                backgroundColor: const Color(0xFFF47C20),
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      email,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: mutedColor, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: mutedColor,
+                size: 15,
+              ),
+            ],
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(email, overflow: TextOverflow.ellipsis, style: TextStyle(color: mutedColor, fontSize: 11)),
-            ]),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(color: const Color(0xFFFFDEC7), borderRadius: BorderRadius.circular(12)),
-            child: const Text('PRO', style: TextStyle(color: Color(0xFFF47C20), fontSize: 9, fontWeight: FontWeight.bold)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -154,7 +272,10 @@ class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.label, required this.color});
 
   @override
-  Widget build(BuildContext context) => Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold));
+  Widget build(BuildContext context) => Text(
+    label,
+    style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+  );
 }
 
 class _SettingData {
@@ -163,8 +284,16 @@ class _SettingData {
   final String subtitle;
   final String? trailing;
   final bool toggle;
+  final VoidCallback? onTap;
 
-  const _SettingData(this.icon, this.title, this.subtitle, {this.trailing, this.toggle = false});
+  const _SettingData(
+    this.icon,
+    this.title,
+    this.subtitle, {
+    this.trailing,
+    this.toggle = false,
+    this.onTap,
+  });
 }
 
 class _SettingsGroup extends StatelessWidget {
@@ -175,20 +304,34 @@ class _SettingsGroup extends StatelessWidget {
   final ValueChanged<int>? onToggle;
   final bool darkMode;
 
-  const _SettingsGroup({required this.background, required this.textColor, required this.mutedColor, required this.rows, this.onToggle, this.darkMode = false});
+  const _SettingsGroup({
+    required this.background,
+    required this.textColor,
+    required this.mutedColor,
+    required this.rows,
+    this.onToggle,
+    this.darkMode = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(19)),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(19),
+      ),
       child: Column(
         children: List.generate(rows.length, (index) {
           final row = rows[index];
           return Column(
             children: [
               InkWell(
-                onTap: row.toggle && onToggle != null ? () => onToggle!(index) : () {},
+                onTap:
+                    row.onTap ??
+                    (row.toggle && onToggle != null
+                        ? () => onToggle!(index)
+                        : () {}),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
                   child: Row(
@@ -196,18 +339,42 @@ class _SettingsGroup extends StatelessWidget {
                       CircleAvatar(
                         radius: 18,
                         backgroundColor: _iconBackground(row.icon),
-                        child: Icon(row.icon, color: _iconColor(row.icon), size: 19),
+                        child: Icon(
+                          row.icon,
+                          color: _iconColor(row.icon),
+                          size: 19,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(row.title, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 2),
-                          Text(row.subtitle, style: TextStyle(color: mutedColor, fontSize: 11)),
-                        ]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              row.title,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              row.subtitle,
+                              style: TextStyle(color: mutedColor, fontSize: 11),
+                            ),
+                          ],
+                        ),
                       ),
                       if (row.trailing != null)
-                        Text(row.trailing!, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold)),
+                        Text(
+                          row.trailing!,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       if (row.toggle)
                         Switch.adaptive(
                           value: darkMode,
@@ -220,7 +387,8 @@ class _SettingsGroup extends StatelessWidget {
                   ),
                 ),
               ),
-              if (index < rows.length - 1) Divider(height: 1, color: mutedColor.withOpacity(.25)),
+              if (index < rows.length - 1)
+                Divider(height: 1, color: mutedColor.withOpacity(.25)),
             ],
           );
         }),
