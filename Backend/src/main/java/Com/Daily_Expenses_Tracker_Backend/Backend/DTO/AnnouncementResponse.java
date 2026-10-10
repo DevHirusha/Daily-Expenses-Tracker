@@ -18,6 +18,7 @@ public class AnnouncementResponse {
     String createdByEmail;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
+    Boolean read;
 
     public static AnnouncementResponse from(AnnouncementEntity announcement) {
         return AnnouncementResponse.builder()
@@ -29,6 +30,20 @@ public class AnnouncementResponse {
                 .createdByEmail(announcement.getCreatedByEmail())
                 .createdAt(announcement.getCreatedAt())
                 .updatedAt(announcement.getUpdatedAt())
+                .build();
+    }
+
+    public static AnnouncementResponse from(AnnouncementEntity announcement, boolean read) {
+        return AnnouncementResponse.builder()
+                .id(announcement.getId())
+                .title(announcement.getTitle())
+                .message(announcement.getMessage())
+                .createdByUserId(announcement.getCreatedByUserId())
+                .createdByName(announcement.getCreatedByName())
+                .createdByEmail(announcement.getCreatedByEmail())
+                .createdAt(announcement.getCreatedAt())
+                .updatedAt(announcement.getUpdatedAt())
+                .read(read)
                 .build();
     }
 }

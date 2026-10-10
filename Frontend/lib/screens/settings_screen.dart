@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'announcements_screen.dart';
 import 'user_profile.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -37,6 +38,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     _loadProfileName();
+  }
+
+  void _openAnnouncements() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnnouncementsScreen(token: widget.token),
+      ),
+    );
   }
 
   String get _displayName {
@@ -119,6 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.notifications_none,
                     'Notifications',
                     'Manage your alerts and reminders',
+                    onTap: _openAnnouncements,
                   ),
                 ],
               ),

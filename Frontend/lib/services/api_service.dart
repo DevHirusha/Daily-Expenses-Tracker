@@ -71,6 +71,34 @@ class ApiService {
     return Map<String, dynamic>.from(result as Map);
   }
 
+  // ---------- ANNOUNCEMENTS ----------
+  static Future<List<Map<String, dynamic>>> getAnnouncements({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/announcements'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
+  static Future<void> markAllAnnouncementsRead({required String token}) async {
+    await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/announcements/read-all'),
+      token: token,
+    );
+  }
+
+  static Future<void> clearAllAnnouncements({required String token}) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/announcements'),
+      token: token,
+    );
+  }
+
   // ---------- GIGS ----------
   static Future<List<Map<String, dynamic>>> getGigs({
     required String token,
