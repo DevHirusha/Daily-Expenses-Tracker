@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -125,7 +126,11 @@ public class BudgetServiceImpl implements BudgetService {
                 && !budget.getMemberUserIds().contains(viewer.getUserId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this budget");
         }
-        return budget.getMemberUserIds().stream()
+        List<String> allMemberIds = new ArrayList<>();
+        allMemberIds.add(budget.getOwner().getUserId());
+        allMemberIds.addAll(budget.getMemberUserIds());
+        return allMemberIds.stream()
+            .distinct()
                 .map(userRepository::findByUserId)
                 .flatMap(java.util.Optional::stream)
                 .map(user -> GroupMemberResponse.builder()
@@ -183,18 +188,29 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override
     @Transactional
-    public void updateSplit(String email, Long budgetId, java.util.Map<String, Double> percentages) {
+        public void updateSplit(String email, Long budgetId, java.util.Map<String, Double> percentages,
+            java.util.Map<String, Double> amounts) {
         UserEntity owner = findUser(email);
         BudgetEntity budget = findBudget(budgetId);
         if (!budget.getOwner().getId().equals(owner.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the budget owner can edit the split");
         }
-        double total = percentages == null ? 0 : percentages.values().stream().mapToDouble(Double::doubleValue).sum();
-        if (total > 100) {
+        double percentageTotal = percentages == null ? 0 : percentages.values().stream().mapToDouble(Double::doubleValue).sum();
+        double amountTotal = amounts == null ? 0 : amounts.values().stream().mapToDouble(Double::doubleValue).sum();
+        boolean hasNegativePercentage = percentages != null && percentages.values().stream().anyMatch(value -> value == null || value < 0);
+        boolean hasNegativeAmount = amounts != null && amounts.values().stream().anyMatch(value -> value == null || value < 0);
+        if (hasNegativePercentage || percentageTotal > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Fixed percentages cannot exceed 100%");
         }
+        if (hasNegativeAmount || amountTotal > budget.getAmount().doubleValue()
+                || amountTotal + budget.getAmount().doubleValue() * percentageTotal / 100 > budget.getAmount().doubleValue()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Fixed allocations cannot exceed the budget");
+        }
         try {
-            budget.setSplitPercentages(objectMapper.writeValueAsString(percentages == null ? java.util.Map.of() : percentages));
+            java.util.Map<String, Object> split = new java.util.LinkedHashMap<>();
+            split.put("percentages", percentages == null ? java.util.Map.of() : percentages);
+            split.put("amounts", amounts == null ? java.util.Map.of() : amounts);
+            budget.setSplitPercentages(objectMapper.writeValueAsString(split));
             budgetRepository.save(budget);
         } catch (JsonProcessingException error) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save budget split", error);
@@ -329,28 +345,48 @@ public class BudgetServiceImpl implements BudgetService {
         if (!budget.getMemberUserIds().contains(viewer.getUserId()) || budget.getMemberUserIds().isEmpty()) {
             return BigDecimal.ZERO.setScale(2);
         }
-        java.util.Map<String, Double> percentages = java.util.Map.of();
+        Map<String, Double> percentages = new HashMap<>();
+        Map<String, Double> amounts = new HashMap<>();
         if (budget.getSplitPercentages() != null && !budget.getSplitPercentages().isBlank()) {
             try {
-                percentages = objectMapper.readValue(
-                        budget.getSplitPercentages(),
-                        objectMapper.getTypeFactory().constructMapType(java.util.HashMap.class, String.class, Double.class));
+                Map<String, Object> split = objectMapper.readValue(
+                        budget.getSplitPercentages(), new TypeReference<>() {});
+                Object percentageValues = split.get("percentages");
+                Object amountValues = split.get("amounts");
+                if (percentageValues instanceof Map<?, ?>) {
+                    percentages = objectMapper.convertValue(percentageValues, new TypeReference<>() {});
+                    amounts = amountValues instanceof Map<?, ?>
+                            ? objectMapper.convertValue(amountValues, new TypeReference<>() {})
+                            : new HashMap<>();
+                } else {
+                    percentages = objectMapper.convertValue(split, new TypeReference<>() {});
+                }
             } catch (Exception ignored) {
-                percentages = java.util.Map.of();
+                percentages = new HashMap<>();
+                amounts = new HashMap<>();
             }
         }
-        double fixedTotal = percentages.values().stream().mapToDouble(Double::doubleValue).sum();
+        double fixedPercentage = percentages.values().stream().mapToDouble(Double::doubleValue).sum();
+        double fixedAmount = amounts.values().stream().mapToDouble(Double::doubleValue).sum();
+        List<String> allMemberIds = new ArrayList<>();
+        allMemberIds.add(budget.getOwner().getUserId());
+        allMemberIds.addAll(budget.getMemberUserIds());
         long flexibleCount = 0;
-        for (String userId : budget.getMemberUserIds()) {
-            if (!percentages.containsKey(userId)) {
+        for (String userId : allMemberIds) {
+            if (!percentages.containsKey(userId) && !amounts.containsKey(userId)) {
                 flexibleCount++;
             }
         }
+        if (amounts.containsKey(viewer.getUserId())) {
+            return BigDecimal.valueOf(amounts.get(viewer.getUserId())).setScale(2, RoundingMode.HALF_UP);
+        }
+        if (budget.getAmount().signum() == 0) {
+            return BigDecimal.ZERO.setScale(2);
+        }
         double percentage = percentages.containsKey(viewer.getUserId())
                 ? percentages.get(viewer.getUserId())
-                : flexibleCount == 0 ? 0 : (100 - fixedTotal) / flexibleCount;
-        return budget.getAmount()
-                .multiply(BigDecimal.valueOf(percentage))
+                : flexibleCount == 0 ? 0 : (100 - fixedPercentage - fixedAmount / budget.getAmount().doubleValue() * 100) / flexibleCount;
+        return budget.getAmount().multiply(BigDecimal.valueOf(percentage))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 }

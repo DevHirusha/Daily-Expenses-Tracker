@@ -7,4 +7,5 @@ import java.util.Map;
 @Data
 public class UpdateBudgetSplitRequest {
     private Map<String, Double> percentages;
+    private Map<String, Double> amounts;
 }
