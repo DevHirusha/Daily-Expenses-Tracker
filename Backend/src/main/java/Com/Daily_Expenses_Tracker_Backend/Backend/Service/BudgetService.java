@@ -18,7 +18,7 @@ public interface BudgetService {
     void addMember(String email, Long budgetId, String userId);
     void deleteBudget(String email, Long budgetId);
     void updateProof(String email, Long budgetId, String proofData);
-    void updateSplit(String email, Long budgetId, Map<String, Double> percentages);
+    void updateSplit(String email, Long budgetId, Map<String, Double> percentages, Map<String, Double> amounts);
     void saveSettlement(String email, Long budgetId, String proofData);
     void saveSettlement(String email, Long budgetId, java.math.BigDecimal amount, String proofData);
     List<SettlementResponse> getSettlements(String email, Long budgetId);

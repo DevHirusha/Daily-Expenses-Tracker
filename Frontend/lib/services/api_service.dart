@@ -670,12 +670,13 @@ class ApiService {
     required String token,
     required int budgetId,
     required Map<String, double> percentages,
+    required Map<String, double> amounts,
   }) async {
     await _authorizedJson(
       method: 'PUT',
       url: Uri.parse('$baseUrl/budgets/$budgetId/split'),
       token: token,
-      payload: {'percentages': percentages},
+      payload: {'percentages': percentages, 'amounts': amounts},
     );
   }
 

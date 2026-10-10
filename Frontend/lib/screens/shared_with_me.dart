@@ -161,25 +161,38 @@ class _SharedWithMeScreenState extends State<SharedWithMeScreen> {
   }
 
   double _percentageFor(Map<String, dynamic> member) {
+    final share = _amountFor(member);
+    return _amount <= 0 ? 0 : share / _amount * 100;
+  }
+
+  double _amountFor(Map<String, dynamic> member) {
     final split = widget.budget['splitPercentages'];
     final overrides = <String, double>{};
+    final allocations = <String, double>{};
     if (split is String && split.isNotEmpty) {
       final decoded = jsonDecode(split);
       if (decoded is Map) {
-        overrides.addAll(
-          decoded.map(
+        final percentageMap = decoded['percentages'] is Map ? decoded['percentages'] as Map : decoded;
+        final amountMap = decoded['amounts'] is Map ? decoded['amounts'] as Map : const {};
+        overrides.addAll(percentageMap.map(
             (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
-          ),
-        );
+        ));
+        allocations.addAll(amountMap.map(
+          (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+        ));
       }
     }
     final id = member['userId']?.toString() ?? '';
-    if (overrides.containsKey(id)) return overrides[id]!;
+    if (allocations.containsKey(id)) return allocations[id]!;
     final flexible = _members.where(
-      (item) => !overrides.containsKey(item['userId']?.toString()),
+      (item) => !overrides.containsKey(item['userId']?.toString()) &&
+          !allocations.containsKey(item['userId']?.toString()),
     );
-    final fixed = overrides.values.fold<double>(0, (sum, value) => sum + value);
-    return flexible.isEmpty ? 0 : (100 - fixed) / (flexible.length + 1);
+    final fixedPercentage = overrides.values.fold<double>(0, (sum, value) => sum + value);
+    final fixedAmount = allocations.values.fold<double>(0, (sum, value) => sum + value);
+    final remaining = (_amount - fixedAmount - _amount * fixedPercentage / 100).clamp(0, _amount).toDouble();
+    if (overrides.containsKey(id)) return _amount * overrides[id]! / 100;
+    return flexible.isEmpty ? 0 : remaining / (flexible.length + 1);
   }
 
   String _date(String key) {
@@ -240,7 +253,7 @@ class _SharedWithMeScreenState extends State<SharedWithMeScreen> {
                   (member) => _PayRow(
                     name: member['name']?.toString() ?? 'Member',
                     percentage: _percentageFor(member),
-                    amount: _amount * _percentageFor(member) / 100,
+                    amount: _amountFor(member),
                   ),
                 ),
               const SizedBox(height: 20),

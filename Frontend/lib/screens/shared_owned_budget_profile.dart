@@ -28,28 +28,45 @@ class _SharedOwnedBudgetProfileScreenState
   bool _showSettled = true;
   bool _isUpdatingProof = false;
   Map<String, double> _percentageOverrides = {};
+  Map<String, double> _amountOverrides = {};
 
   int get _budgetId => (widget.budget['id'] as num).toInt();
   bool get _isOwner => widget.budget['owner'] == true;
 
   double get _amount => (widget.budget['amount'] as num?)?.toDouble() ?? 0;
 
-  double get _ownerPercentage {
-    final fixedTotal = _percentageOverrides.values.fold<double>(
-      0,
-      (sum, percentage) => sum + percentage,
-    );
-    final flexibleMembers = _members.where(
-      (member) =>
-          member['role']?.toString() != 'OWNER' &&
-          !_percentageOverrides.containsKey(member['userId']?.toString()),
-    ).length;
-    final flexibleParticipants = flexibleMembers + 1;
-    return (100 - fixedTotal).clamp(0, 100).toDouble() /
-        flexibleParticipants;
-  }
+  String get _ownerId => _members
+      .firstWhere(
+        (member) => member['role']?.toString() == 'OWNER',
+        orElse: () => const <String, dynamic>{},
+      )['userId']
+      ?.toString() ??
+      '';
 
-  double get _ownerShareAmount => _amount * _ownerPercentage / 100;
+  int get _flexibleMemberCount => _members.where(
+    (member) =>
+        member['role']?.toString() != 'OWNER' &&
+        !_percentageOverrides.containsKey(member['userId']?.toString()) &&
+        !_amountOverrides.containsKey(member['userId']?.toString()),
+  ).length;
+
+    double get _fixedAmount => _amountOverrides.values.fold(0, (sum, value) => sum + value);
+    double get _fixedPercentageAmount => _amount *
+      _percentageOverrides.values.fold<double>(0, (sum, value) => sum + value) / 100;
+
+  double get _ownerShareAmount {
+    if (_amountOverrides.containsKey(_ownerId)) {
+      return _amountOverrides[_ownerId]!;
+    }
+    if (_percentageOverrides.containsKey(_ownerId)) {
+      return _amount * _percentageOverrides[_ownerId]! / 100;
+    }
+    final flexibleParticipants = _flexibleMemberCount + 1;
+    final remaining = (_amount - _fixedAmount - _fixedPercentageAmount)
+        .clamp(0, _amount)
+        .toDouble();
+    return flexibleParticipants == 0 ? 0 : remaining / flexibleParticipants;
+  }
 
   double _value(Map<String, dynamic> item, String key) =>
       (item[key] as num?)?.toDouble() ?? 0;
@@ -68,17 +85,23 @@ class _SharedOwnedBudgetProfileScreenState
   @override
   void initState() {
     super.initState();
-    final savedSplit = widget.budget['splitPercentages'];
-    if (savedSplit is String && savedSplit.isNotEmpty) {
-      final decoded = jsonDecode(savedSplit);
-      if (decoded is Map) {
-        _percentageOverrides = decoded.map(
-          (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
-        );
-      }
-    }
+    _readSavedSplit(widget.budget['splitPercentages']);
     _loadMembers();
     _loadSettlements();
+  }
+
+  void _readSavedSplit(dynamic savedSplit) {
+    if (savedSplit is! String || savedSplit.isEmpty) return;
+    final decoded = jsonDecode(savedSplit);
+    if (decoded is! Map) return;
+    final percentages = decoded['percentages'] is Map ? decoded['percentages'] : decoded;
+    final amounts = decoded['amounts'] is Map ? decoded['amounts'] : const {};
+    _percentageOverrides = Map<String, double>.fromEntries(
+      (percentages as Map).entries.map((entry) => MapEntry(entry.key.toString(), (entry.value as num).toDouble())),
+    );
+    _amountOverrides = Map<String, double>.fromEntries(
+      (amounts as Map).entries.map((entry) => MapEntry(entry.key.toString(), (entry.value as num).toDouble())),
+    );
   }
 
   Future<void> _loadSettlements() async {
@@ -179,23 +202,31 @@ class _SharedOwnedBudgetProfileScreenState
       _showMessage('Add members before setting percentages');
       return;
     }
-    final percentages = await showDialog<Map<String, double>>(
+    final split = await showDialog<Map<String, Map<String, double>>>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => _AdvancedSplitDialog(
         members: _members,
+        budgetAmount: _amount,
         initialPercentages: _percentageOverrides,
+        initialAmounts: _amountOverrides,
       ),
     );
-    if (percentages != null && mounted) {
+    if (split != null && mounted) {
       try {
         await ApiService.updateBudgetSplit(
           token: widget.token,
           budgetId: _budgetId,
-          percentages: percentages,
+          percentages: split['percentages']!,
+          amounts: split['amounts']!,
         );
         setState(() {
-          _percentageOverrides = percentages;
-          widget.budget['splitPercentages'] = jsonEncode(percentages);
+          _percentageOverrides = split['percentages']!;
+          _amountOverrides = split['amounts']!;
+          widget.budget['splitPercentages'] = jsonEncode({
+            'percentages': _percentageOverrides,
+            'amounts': _amountOverrides,
+          });
           _showSettled = false;
         });
       } catch (error) {
@@ -435,13 +466,13 @@ class _SharedOwnedBudgetProfileScreenState
             children: [
               _SpendCard(
                 amount: _amount,
-                ownerShareAmount: _ownerShareAmount,
                 settledAmount: _settledAmount,
                 remainingAmount: _remainingAmount,
               ),
               const SizedBox(height: 18),
               _ProofCard(
                 proofData: widget.budget['proofData']?.toString(),
+                amount: _amount,
                 canEdit: _isOwner,
                 isUpdating: _isUpdatingProof,
                 onEdit: _editProof,
@@ -522,8 +553,10 @@ class _SharedOwnedBudgetProfileScreenState
                   members: _members,
                   amount: _amount,
                   ownerName: widget.budget['ownerName']?.toString() ?? 'You',
+                  ownerId: _ownerId,
                   ownerShareAmount: _ownerShareAmount,
                   percentageOverrides: _percentageOverrides,
+                  amountOverrides: _amountOverrides,
                   settlements: _settlements,
                 ),
               ],
@@ -631,26 +664,20 @@ class _SettlementSection extends StatelessWidget {
 
 class _SpendCard extends StatelessWidget {
   final double amount;
-  final double ownerShareAmount;
   final double settledAmount;
   final double remainingAmount;
 
   const _SpendCard({
     required this.amount,
-    required this.ownerShareAmount,
     required this.settledAmount,
     required this.remainingAmount,
   });
 
   @override
   Widget build(BuildContext context) {
-    final ownerRatio = amount <= 0
-      ? 0.0
-      : (ownerShareAmount / amount).clamp(0.0, 1.0).toDouble();
     final settledRatio = amount <= 0
-      ? 0.0
-      : (settledAmount / amount).clamp(0.0, 1.0 - ownerRatio).toDouble();
-    final remainingRatio = (1 - ownerRatio - settledRatio).clamp(0.0, 1.0);
+        ? 0.0
+        : (settledAmount / amount).clamp(0.0, 1.0).toDouble();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
@@ -662,59 +689,72 @@ class _SpendCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Spent', style: TextStyle(color: Color(0xFF64748B))),
-              Text(
-                'Rs ${settledAmount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  color: Color(0xFF172C57),
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              height: 9,
-              child: LayoutBuilder(
-                builder: (context, constraints) => Stack(
+              SizedBox(
+                width: 100,
+                height: 100,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SizedBox(
-                        width: constraints.maxWidth * ownerRatio,
-                        child: Container(color: const Color(0xFF2563EB)),
+                    Transform.scale(
+                      scale: 1.60,
+                      child: CircularProgressIndicator(
+                        value: settledRatio,
+                        strokeWidth: 5,
+                        backgroundColor: const Color(0xFFD9DFF2),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFFF47C20),
+                        ),
                       ),
                     ),
-                    Positioned(
-                      left: constraints.maxWidth * ownerRatio,
-                      child: SizedBox(
-                        width: constraints.maxWidth * settledRatio,
-                        height: constraints.maxHeight,
-                        child: Container(color: const Color(0xFFF47C20)),
-                      ),
-                    ),
-                    Positioned(
-                      left: constraints.maxWidth * (ownerRatio + settledRatio),
-                      child: SizedBox(
-                        width: constraints.maxWidth * remainingRatio,
-                        height: constraints.maxHeight,
-                        child: Container(color: const Color(0xFFD9DFF2)),
+                    Text(
+                      '${(settledRatio * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        color: Color(0xFF172C57),
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Rs ${remainingAmount.toStringAsFixed(0)} remaining',
-            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Budget settled',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Rs ${settledAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: Color(0xFFF47C20),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'of Rs ${amount.toStringAsFixed(2)} total',
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Rs ${remainingAmount.toStringAsFixed(2)} remaining',
+                      style: const TextStyle(
+                        color: Color(0xFF172C57),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -823,16 +863,20 @@ class _MemberShareList extends StatelessWidget {
   final List<Map<String, dynamic>> members;
   final double amount;
   final String ownerName;
+  final String ownerId;
   final double ownerShareAmount;
   final Map<String, double> percentageOverrides;
+  final Map<String, double> amountOverrides;
   final List<Map<String, dynamic>> settlements;
 
   const _MemberShareList({
     required this.members,
     required this.amount,
     required this.ownerName,
+    required this.ownerId,
     required this.ownerShareAmount,
     required this.percentageOverrides,
+    required this.amountOverrides,
     required this.settlements,
   });
 
@@ -844,21 +888,27 @@ class _MemberShareList extends StatelessWidget {
         style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
       );
     }
-    final fixedTotal = percentageOverrides.values.fold<double>(
+    final fixedAmount = amountOverrides.values.fold<double>(0, (sum, value) => sum + value);
+    final fixedPercentageAmount = amount * percentageOverrides.values.fold<double>(
       0,
       (sum, percentage) => sum + percentage,
-    );
-    final remainingPercentage = (100 - fixedTotal).clamp(0, 100).toDouble();
+    ) / 100;
+    final remainingAmount = (amount - fixedAmount - fixedPercentageAmount).clamp(0, amount).toDouble();
     final visibleMembers = members
       .where((member) => member['name']?.toString() != ownerName)
       .toList();
     final flexibleMembers = visibleMembers.where(
       (member) =>
-          !percentageOverrides.containsKey(member['userId']?.toString()),
+          !percentageOverrides.containsKey(member['userId']?.toString()) &&
+          !amountOverrides.containsKey(member['userId']?.toString()),
     );
-    final equalPercentage = flexibleMembers.isEmpty
+    final ownerIsFlexible = !percentageOverrides.containsKey(ownerId) &&
+        !amountOverrides.containsKey(ownerId);
+    final flexibleParticipants = flexibleMembers.length +
+        (ownerIsFlexible ? 1 : 0);
+    final equalAmount = flexibleParticipants == 0
         ? 0
-      : remainingPercentage / (flexibleMembers.length + 1);
+      : remainingAmount / flexibleParticipants;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -884,8 +934,11 @@ class _MemberShareList extends StatelessWidget {
           ),
           ...visibleMembers.map((member) {
             final userId = member['userId']?.toString() ?? '';
-            final percentage = percentageOverrides[userId] ?? equalPercentage;
-            final share = amount * percentage / 100;
+            final share = amountOverrides[userId] ??
+              (percentageOverrides.containsKey(userId)
+                ? amount * percentageOverrides[userId]! / 100
+                : equalAmount);
+            final percentage = amount <= 0 ? 0 : share / amount * 100;
             final settlement = settlements.cast<Map<String, dynamic>?>().firstWhere(
               (item) => item?['payerUserId']?.toString() == userId,
               orElse: () => null,
@@ -1040,6 +1093,7 @@ class _OwnerShareRow extends StatelessWidget {
 
 class _ProofCard extends StatelessWidget {
   final String? proofData;
+  final double amount;
   final bool canEdit;
   final bool isUpdating;
   final VoidCallback onEdit;
@@ -1047,6 +1101,7 @@ class _ProofCard extends StatelessWidget {
 
   const _ProofCard({
     required this.proofData,
+    required this.amount,
     required this.canEdit,
     required this.isUpdating,
     required this.onEdit,
@@ -1066,66 +1121,80 @@ class _ProofCard extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: hasProof ? () => onOpen(proofData!) : null,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(9),
-                  child: hasProof
-                      ? Image.memory(
-                          base64Decode(proofData!),
-                          width: 72,
-                          height: 72,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          width: 72,
-                          height: 72,
-                          color: const Color(0xFFE8ECFA),
-                          child: const Icon(
-                            Icons.image_outlined,
-                            color: Color(0xFF94A3B8),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: hasProof ? () => onOpen(proofData!) : null,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(9),
+                      child: hasProof
+                          ? Image.memory(
+                              base64Decode(proofData!),
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              width: 72,
+                              height: 72,
+                              color: const Color(0xFFE8ECFA),
+                              child: const Icon(
+                                Icons.image_outlined,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Proof',
+                          style: TextStyle(
+                            color: Color(0xFF172C57),
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Proof',
-                      style: TextStyle(
-                        color: Color(0xFF172C57),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      hasProof ? 'Tap to view' : 'No proof uploaded',
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (canEdit)
-                      InkWell(
-                        onTap: isUpdating ? null : onEdit,
-                        child: const Padding(
-                          padding: EdgeInsets.only(top: 5),
-                          child: Text(
-                            'Change',
-                            style: TextStyle(
-                              color: Color(0xFFF47C20),
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                        const SizedBox(height: 4),
+                        Text(
+                          hasProof ? 'Tap to view' : 'No proof uploaded',
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (canEdit)
+                          InkWell(
+                            onTap: isUpdating ? null : onEdit,
+                            child: const Padding(
+                              padding: EdgeInsets.only(top: 5),
+                              child: Text(
+                                'Change',
+                                style: TextStyle(
+                                  color: Color(0xFFF47C20),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Total cost  Rs ${amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: Color(0xFFF47C20),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -1138,11 +1207,15 @@ class _ProofCard extends StatelessWidget {
 
 class _AdvancedSplitDialog extends StatefulWidget {
   final List<Map<String, dynamic>> members;
+  final double budgetAmount;
   final Map<String, double> initialPercentages;
+  final Map<String, double> initialAmounts;
 
   const _AdvancedSplitDialog({
     required this.members,
+    required this.budgetAmount,
     required this.initialPercentages,
+    required this.initialAmounts,
   });
 
   @override
@@ -1150,7 +1223,19 @@ class _AdvancedSplitDialog extends StatefulWidget {
 }
 
 class _AdvancedSplitDialogState extends State<_AdvancedSplitDialog> {
-  late final Map<String, TextEditingController> _controllers = {
+  static const _navy = Color(0xFF5066A0);
+  static const _orange = Color(0xFFF47C20);
+  late final Map<String, String> _modes = {
+    for (final member in widget.members)
+      member['userId']?.toString() ?? '': widget.initialAmounts.containsKey(
+            member['userId']?.toString(),
+          )
+          ? 'amount'
+          : widget.initialPercentages.containsKey(member['userId']?.toString())
+          ? 'percentage'
+          : 'auto',
+  };
+  late final Map<String, TextEditingController> _percentageControllers = {
     for (final member in widget.members)
       member['userId']?.toString() ?? '': TextEditingController(
         text:
@@ -1159,11 +1244,71 @@ class _AdvancedSplitDialogState extends State<_AdvancedSplitDialog> {
             '',
       ),
   };
+  late final Map<String, TextEditingController> _amountControllers = {
+    for (final member in widget.members)
+      member['userId']?.toString() ?? '': TextEditingController(
+        text: widget.initialAmounts[member['userId']?.toString()]?.toString() ?? '',
+      ),
+  };
   String? _error;
+
+  void _setAllAuto() {
+    setState(() {
+      for (final id in _modes.keys) {
+        _modes[id] = 'auto';
+        _percentageControllers[id]!.clear();
+        _amountControllers[id]!.clear();
+      }
+      _error = null;
+    });
+  }
+
+  Future<void> _chooseMode(String id) async {
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.autorenew, color: _navy),
+              title: const Text('Auto split'),
+              subtitle: const Text('Share the remaining amount equally'),
+              onTap: () => Navigator.pop(context, 'auto'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.percent, color: _orange),
+              title: const Text('Percentage'),
+              subtitle: const Text('Enter this member\'s percentage'),
+              onTap: () => Navigator.pop(context, 'percentage'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.payments_outlined, color: _orange),
+              title: const Text('Amount'),
+              subtitle: const Text('Enter this member\'s allocated amount'),
+              onTap: () => Navigator.pop(context, 'amount'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || mode == null) return;
+    setState(() {
+      _modes[id] = mode;
+      if (mode == 'auto') {
+        _percentageControllers[id]!.clear();
+        _amountControllers[id]!.clear();
+      } else if (mode == 'percentage') {
+        _amountControllers[id]!.clear();
+      } else {
+        _percentageControllers[id]!.clear();
+      }
+    });
+  }
 
   @override
   void dispose() {
-    for (final controller in _controllers.values) {
+    for (final controller in [..._percentageControllers.values, ..._amountControllers.values]) {
       controller.dispose();
     }
     super.dispose();
@@ -1171,30 +1316,67 @@ class _AdvancedSplitDialogState extends State<_AdvancedSplitDialog> {
 
   void _save() {
     final percentages = <String, double>{};
-    for (final entry in _controllers.entries) {
-      final value = entry.value.text.trim();
-      if (value.isEmpty) continue;
-      final percentage = double.tryParse(value);
-      if (percentage == null || percentage < 0 || percentage > 100) {
-        setState(() => _error = 'Each percentage must be between 0 and 100');
+    final amounts = <String, double>{};
+    for (final member in widget.members) {
+      final id = member['userId']?.toString() ?? '';
+      final percentageText = _percentageControllers[id]!.text.trim();
+      final amountText = _amountControllers[id]!.text.trim();
+      if (percentageText.isNotEmpty && amountText.isNotEmpty) {
+        setState(() => _error = 'Use either percentage or amount for each member');
         return;
       }
-      percentages[entry.key] = percentage;
+      if (percentageText.isNotEmpty) {
+        final percentage = double.tryParse(percentageText);
+        if (percentage == null || percentage < 0 || percentage > 100) {
+          setState(() => _error = 'Each percentage must be between 0 and 100');
+          return;
+        }
+        percentages[id] = percentage;
+      } else if (amountText.isNotEmpty) {
+        final amount = double.tryParse(amountText);
+        if (amount == null || amount < 0) {
+          setState(() => _error = 'Each amount must be zero or greater');
+          return;
+        }
+        amounts[id] = amount;
+      }
     }
     final total = percentages.values.fold<double>(
       0,
       (sum, percentage) => sum + percentage,
     );
+    final allocatedAmount = amounts.values.fold<double>(
+      0,
+      (sum, amount) => sum + amount,
+    );
+    final percentageAmount = widget.budgetAmount * total / 100;
     if (total > 100) {
       setState(() => _error = 'Fixed percentages cannot exceed 100%');
       return;
     }
-    Navigator.pop(context, percentages);
+    if (allocatedAmount + percentageAmount > widget.budgetAmount) {
+      setState(() => _error = 'Fixed allocations cannot exceed the budget amount');
+      return;
+    }
+    Navigator.pop(context, {'percentages': percentages, 'amounts': amounts});
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Advanced split'),
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    child: AlertDialog(
+    titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
+    title: Row(
+      children: [
+        const Expanded(child: Text('Advanced split')),
+        TextButton.icon(
+          onPressed: _setAllAuto,
+          icon: const Icon(Icons.autorenew, size: 17),
+          label: const Text('Auto split'),
+          style: TextButton.styleFrom(foregroundColor: _orange),
+        ),
+      ],
+    ),
     content: SizedBox(
       width: double.maxFinite,
       child: SingleChildScrollView(
@@ -1203,39 +1385,66 @@ class _AdvancedSplitDialogState extends State<_AdvancedSplitDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Set fixed percentages for members. The remaining percentage is divided equally among blank members.',
+              'Enter a percentage or an allocated amount. Blank members share the remaining amount equally.',
               style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
             ),
             const SizedBox(height: 14),
             ...widget.members.map(
-              (member) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        member['name']?.toString() ?? 'Member',
-                        style: const TextStyle(color: Color(0xFF172C57)),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 86,
-                      child: TextField(
-                        controller:
-                            _controllers[member['userId']?.toString() ?? ''],
+              (member) {
+                final id = member['userId']?.toString() ?? '';
+                final mode = _modes[id] ?? 'auto';
+                final input = mode == 'percentage'
+                    ? TextField(
+                        controller: _percentageControllers[id],
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                         decoration: const InputDecoration(
                           suffixText: '%',
-                          hintText: 'Auto',
+                          hintText: 'Percentage',
                           isDense: true,
                         ),
+                      )
+                    : mode == 'amount'
+                    ? TextField(
+                        controller: _amountControllers[id],
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          prefixText: 'Rs ',
+                          hintText: 'Amount',
+                          isDense: true,
+                        ),
+                      )
+                    : const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Auto',
+                          style: TextStyle(color: Color(0xFF64748B)),
+                        ),
+                      );
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          member['name']?.toString() ?? 'Member',
+                          style: const TextStyle(color: Color(0xFF172C57)),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      SizedBox(width: 112, child: input),
+                      IconButton(
+                        onPressed: () => _chooseMode(id),
+                        icon: const Icon(Icons.call_split, size: 20),
+                        color: const Color(0xFF5066A0),
+                        tooltip: 'Choose split type',
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
             if (_error != null)
               Text(
@@ -1249,10 +1458,19 @@ class _AdvancedSplitDialogState extends State<_AdvancedSplitDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
+        style: TextButton.styleFrom(foregroundColor: _navy),
         child: const Text('Cancel'),
       ),
-      FilledButton(onPressed: _save, child: const Text('Done')),
+      FilledButton(
+        onPressed: _save,
+        style: FilledButton.styleFrom(
+          backgroundColor: _navy,
+          foregroundColor: Colors.white,
+        ),
+        child: const Text('Done'),
+      ),
     ],
+    ),
   );
 }
 
