@@ -27,15 +27,11 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      HomeScreen(
-        email: widget.email,
-        token: widget.token,
-        onNavigate: _select,
-      ),
+      HomeScreen(email: widget.email, token: widget.token, onNavigate: _select),
       BudgetDashboardScreen(token: widget.token),
       SharedExpensesScreen(token: widget.token, onNavigate: _select),
       FindGigsScreen(token: widget.token),
-      SettingsScreen(email: widget.email),
+      SettingsScreen(email: widget.email, token: widget.token),
     ];
 
     return Scaffold(
@@ -53,11 +49,36 @@ class _AppShellState extends State<AppShell> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(icon: Icons.home, label: 'Home', selected: _selectedIndex == 0, onTap: () => _select(0)),
-              _NavItem(icon: Icons.account_balance_wallet, label: 'Budget dashboard', selected: _selectedIndex == 1, onTap: () => _select(1)),
-              _NavItem(icon: Icons.people_alt, label: 'Shared budget', selected: _selectedIndex == 2, onTap: () => _select(2)),
-              _NavItem(icon: Icons.work, label: 'Find gigs', selected: _selectedIndex == 3, onTap: () => _select(3)),
-              _NavItem(icon: Icons.wb_sunny_outlined, label: 'Settings', selected: _selectedIndex == 4, onTap: () => _select(4)),
+              _NavItem(
+                icon: Icons.home,
+                label: 'Home',
+                selected: _selectedIndex == 0,
+                onTap: () => _select(0),
+              ),
+              _NavItem(
+                icon: Icons.account_balance_wallet,
+                label: 'Budget dashboard',
+                selected: _selectedIndex == 1,
+                onTap: () => _select(1),
+              ),
+              _NavItem(
+                icon: Icons.people_alt,
+                label: 'Shared budget',
+                selected: _selectedIndex == 2,
+                onTap: () => _select(2),
+              ),
+              _NavItem(
+                icon: Icons.work,
+                label: 'Find gigs',
+                selected: _selectedIndex == 3,
+                onTap: () => _select(3),
+              ),
+              _NavItem(
+                icon: Icons.wb_sunny_outlined,
+                label: 'Settings',
+                selected: _selectedIndex == 4,
+                onTap: () => _select(4),
+              ),
             ],
           ),
         ),
@@ -74,7 +95,12 @@ class _NavItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +124,10 @@ class _NavItem extends StatelessWidget {
                 duration: const Duration(milliseconds: 180),
                 width: selected ? 24 : 0,
                 height: 3,
-                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ],
           ),
