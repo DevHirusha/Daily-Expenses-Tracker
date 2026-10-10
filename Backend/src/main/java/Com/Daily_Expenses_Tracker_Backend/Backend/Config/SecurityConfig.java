@@ -59,12 +59,14 @@ public class SecurityConfig {
                         // User public endpoints
                         .requestMatchers(
                                 "/login",
+                                "/google",
                                 "/register",
                                 "/send-reset-otp",
                                 "/send-otp",
                                 "/reset-password",
                                 "/logout",
                                 "/api/v1.0/login",
+                                "/api/v1.0/google",
                                 "/api/v1.0/register",
                                 "/api/v1.0/send-reset-otp",
                                 "/api/v1.0/send-otp",

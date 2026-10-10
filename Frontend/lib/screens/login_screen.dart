@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'app_shell.dart';
@@ -15,8 +17,27 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
 
+  static const String _googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
+  static const String _googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+  );
+  late final Future<void> _googleSignInInitialization;
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _googleSignInInitialization = GoogleSignIn.instance.initialize(
+      clientId: _googleClientId.isEmpty ? null : _googleClientId,
+      serverClientId: _googleServerClientId.isEmpty
+          ? null
+          : _googleServerClientId,
+    );
+  }
 
   @override
   void dispose() {
@@ -75,6 +96,59 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(
+        e.toString().replaceFirst('Exception: ', ''),
+        Colors.red,
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    if (kIsWeb || !GoogleSignIn.instance.supportsAuthenticate()) {
+      _showSnack(
+        'Google login is currently available on Android and iOS.',
+        Colors.orange,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _googleSignInInitialization;
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception('Google did not return an ID token');
+      }
+
+      final data = await ApiService.loginWithGoogle(idToken: idToken);
+      final token = data['token']?.toString();
+      final returnedEmail = data['email']?.toString() ?? account.email;
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Google login response did not include a token');
+      }
+
+      if (!mounted) return;
+      _showSnack('Google login successful', Colors.green);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AppShell(email: returnedEmail, token: token),
+        ),
+      );
+    } on GoogleSignInException catch (e) {
+      if (!mounted) return;
+      final message = e.code == GoogleSignInExceptionCode.canceled
+          ? 'Google sign-in was cancelled.'
+          : 'Google sign-in failed. Check your Google OAuth configuration.';
+      _showSnack(message, Colors.red);
     } catch (e) {
       if (!mounted) return;
       _showSnack(
@@ -325,9 +399,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: SizedBox(
                         height: 55,
                         child: OutlinedButton(
-                          onPressed: () {
-                            // TODO: Google login
-                          },
+                          onPressed: _isLoading ? null : _handleGoogleLogin,
                           style: OutlinedButton.styleFrom(
                             backgroundColor: Colors.white,
                             side: const BorderSide(color: Color(0xFFE2E8F0)),

@@ -45,6 +45,16 @@ class ApiService {
     }, tag: 'LOGIN');
   }
 
+  // ---------- GOOGLE LOGIN ----------
+  // The backend verifies this Google ID token and returns the app's JWT.
+  static Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+  }) {
+    return _postJson(Uri.parse('$baseUrl/google'), {
+      'idToken': idToken,
+    }, tag: 'GOOGLE LOGIN');
+  }
+
   // ---------- GIGS ----------
   static Future<List<Map<String, dynamic>>> getGigs({
     required String token,
