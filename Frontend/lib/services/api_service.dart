@@ -8,15 +8,15 @@ class ApiService {
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
       ? const String.fromEnvironment('API_BASE_URL')
-      : 'http://localhost:8080/api/v1.0';
+      : 'https://daily-expenses-tracker-production.up.railway.app/api/v1.0';
 
   // Local development URLs:
   // Flutter web/desktop/iOS simulator: http://localhost:8080/api/v1.0
   // Android emulator: http://10.0.2.2:8080/api/v1.0
   // Physical device: use --dart-define=API_BASE_URL=http://YOUR_PC_IP:8080/api/v1.0
 
-  // Render backend URL:
-  // https://daily-expenses-tracker-g3l0.onrender.com/api/v1.0
+  // Production backend URL:
+  // https://daily-expenses-tracker-production.up.railway.app/api/v1.0
 
   // ---------- REGISTER ----------
   static Future<Map<String, dynamic>> register({
