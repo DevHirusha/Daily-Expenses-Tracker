@@ -184,7 +184,13 @@ const Dashboard = () => {
               <button className="hover:text-white">
                 <Settings size={20} />
               </button>
-              <button className="hover:text-white">
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard/profile")}
+                aria-label="Open admin profile"
+                title="Open admin profile"
+                className="rounded-lg p-1.5 transition hover:bg-white/10 hover:text-white"
+              >
                 <User size={20} />
               </button>
             </div>
