@@ -28,6 +28,8 @@ public class UserEntity {
     private String username;
     @Column(unique = true)
     private String email;
+    @Column(unique = true)
+    private String googleSubject;
     private String password;
     private String verifyOtp;
     private Boolean isAccountVerified;

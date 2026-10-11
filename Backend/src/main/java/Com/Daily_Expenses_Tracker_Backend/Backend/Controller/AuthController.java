@@ -2,8 +2,10 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Controller;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AuthRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AuthResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GoogleLoginRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ResetPasswordRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.AppUserDetailsService;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Service.GoogleAuthService;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.ProfileService;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Util.JwtUtil;
 import jakarta.validation.Valid;
@@ -34,6 +36,7 @@ public class AuthController {
     private final AppUserDetailsService appUserDetailsService;
     private final ProfileService profileService;
     private final JwtUtil jwtUtil;
+    private final GoogleAuthService googleAuthService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
@@ -123,6 +126,11 @@ public class AuthController {
                         password
                 )
         );
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<?> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+        return ResponseEntity.ok(googleAuthService.login(request.getIdToken()));
     }
 
     @GetMapping("/is-authenticated")
