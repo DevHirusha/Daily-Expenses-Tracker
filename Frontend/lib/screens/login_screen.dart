@@ -116,6 +116,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    if (_googleServerClientId.trim().isEmpty) {
+      _showSnack(
+        'Google Sign-In is not configured. Run with '
+        '--dart-define=GOOGLE_SERVER_CLIENT_ID=<Web OAuth client ID>.',
+        Colors.orange,
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -145,9 +154,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on GoogleSignInException catch (e) {
       if (!mounted) return;
-      final message = e.code == GoogleSignInExceptionCode.canceled
-          ? 'Google sign-in was cancelled.'
-          : 'Google sign-in failed. Check your Google OAuth configuration.';
+      final message = switch (e.code) {
+        GoogleSignInExceptionCode.canceled =>
+          'Google sign-in was cancelled.',
+        GoogleSignInExceptionCode.clientConfigurationError ||
+        GoogleSignInExceptionCode.providerConfigurationError =>
+          'Google configuration error: '
+              '${e.description ?? 'check the Web OAuth client ID, package name, and SHA-1.'}',
+        _ => 'Google sign-in failed: '
+            '${e.description ?? 'check your Google OAuth configuration.'}',
+      };
       _showSnack(message, Colors.red);
     } catch (e) {
       if (!mounted) return;
