@@ -153,10 +153,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on GoogleSignInException catch (e) {
+      debugPrint(
+        'Google Sign-In error: code=${e.code}, description=${e.description}',
+      );
       if (!mounted) return;
       final message = switch (e.code) {
         GoogleSignInExceptionCode.canceled =>
-          'Google sign-in was cancelled.',
+          'Google sign-in was cancelled or Android OAuth is misconfigured. '
+              'Check the package name, SHA-1, and Web client ID.',
         GoogleSignInExceptionCode.clientConfigurationError ||
         GoogleSignInExceptionCode.providerConfigurationError =>
           'Google configuration error: '
