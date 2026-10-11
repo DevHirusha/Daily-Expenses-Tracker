@@ -53,6 +53,8 @@ class ApiService {
     return _postJson(Uri.parse('$baseUrl/google'), {
       'idToken': idToken,
     }, tag: 'GOOGLE LOGIN');
+  }
+
   // ---------- PROFILE ----------
   static Future<Map<String, dynamic>> getProfile({
     required String token,
