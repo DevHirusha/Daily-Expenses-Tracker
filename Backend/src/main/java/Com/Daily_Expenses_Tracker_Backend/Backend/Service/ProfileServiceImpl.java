@@ -2,6 +2,7 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Service;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileUpdateRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.Role;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
@@ -44,6 +45,22 @@ public class ProfileServiceImpl implements ProfileService {
         UserEntity existingUser = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found " + email));
         return convertToProfileResponse(existingUser);
+    }
+
+    @Override
+    public ProfileResponse updateProfile(String email, ProfileUpdateRequest request) {
+        UserEntity existingUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found " + email));
+
+        String username = request.getUsername().trim().toLowerCase(Locale.ROOT);
+        if (!username.equalsIgnoreCase(existingUser.getUsername())
+                && userRepository.existsByUsernameAndIdNot(username, existingUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username Already Exists");
+        }
+
+        existingUser.setName(request.getName().trim());
+        existingUser.setUsername(username);
+        return convertToProfileResponse(userRepository.save(existingUser));
     }
 
     // Forgot Password / Reset Password process.

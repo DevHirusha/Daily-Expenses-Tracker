@@ -424,26 +424,34 @@ class _BudgetBreakdown {
   double amountFor(Map<String, dynamic> member) {
     final amount = (budget['amount'] as num?)?.toDouble() ?? 0;
     final overrides = <String, double>{};
+    final allocations = <String, double>{};
     final savedSplit = budget['splitPercentages'];
     if (savedSplit is String && savedSplit.isNotEmpty) {
       try {
         final decoded = jsonDecode(savedSplit);
         if (decoded is Map) {
-          overrides.addAll(
-            decoded.map(
+          final percentageMap = decoded['percentages'] is Map ? decoded['percentages'] as Map : decoded;
+          final amountMap = decoded['amounts'] is Map ? decoded['amounts'] as Map : const {};
+          overrides.addAll(percentageMap.map(
               (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
-            ),
-          );
+          ));
+          allocations.addAll(amountMap.map(
+            (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+          ));
         }
       } catch (_) {}
     }
+    final fixedAmount = allocations.values.fold<double>(0, (sum, value) => sum + value);
     final fixedTotal = overrides.values.fold<double>(0, (sum, value) => sum + value);
     final flexible = members.where(
-      (item) => !overrides.containsKey(item['userId']?.toString()),
+      (item) => !overrides.containsKey(item['userId']?.toString()) &&
+          !allocations.containsKey(item['userId']?.toString()),
     ).length + 1;
     final userId = member['userId']?.toString() ?? '';
+    if (allocations.containsKey(userId)) return allocations[userId]!;
+    final remaining = (amount - fixedAmount - amount * fixedTotal / 100).clamp(0, amount).toDouble();
     final percentage = overrides[userId] ??
-        (flexible == 0 ? 0 : (100 - fixedTotal) / flexible);
+        (flexible == 0 ? 0 : remaining / flexible * 100 / amount);
     return amount * percentage / 100;
   }
 }

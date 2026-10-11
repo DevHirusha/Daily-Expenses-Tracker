@@ -23,6 +23,7 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
   double ownedTotal = 0;
   double sharedTotal = 0;
   double actualSharedTotal = 0;
+  Map<int, List<Map<String, dynamic>>> settlementsByBudget = {};
 
   @override
   void initState() {
@@ -53,13 +54,18 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
                 sum + ((budget['payableAmount'] as num?)?.toDouble() ?? 0),
           );
       final settlementLists = await Future.wait(
-        owned.map(
+        loaded.map(
           (budget) => ApiService.getBudgetSettlements(
             token: widget.token,
             budgetId: (budget['id'] as num).toInt(),
           ),
         ),
       );
+      final loadedSettlements = <int, List<Map<String, dynamic>>>{};
+      for (var index = 0; index < loaded.length; index++) {
+        loadedSettlements[(loaded[index]['id'] as num).toInt()] =
+        settlementLists[index];
+      }
       final actualSharedAmount = settlementLists
           .expand((settlements) => settlements)
           .where((settlement) => settlement['currentUser'] != true)
@@ -74,6 +80,7 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
         ownedTotal = ownedAmount;
         sharedTotal = sharedAmount;
         actualSharedTotal = actualSharedAmount;
+        settlementsByBudget = loadedSettlements;
         isLoading = false;
       });
     } catch (error) {
@@ -220,28 +227,48 @@ class _SharedExpensesScreenState extends State<SharedExpensesScreen> {
                 const _EmptyBudgets()
               else
                 ...visibleBudgets.map(
-                  (budget) => _BudgetTile(
-                    title: budget['name']?.toString() ?? 'Budget',
-                    amount: 'Rs 0 of Rs ${budget['amount']}',
-                    progress: 0,
-                    onTap: () {
-                      final screen = showOwned
-                          ? SharedOwnedBudgetProfileScreen(
-                              token: widget.token,
-                              budget: budget,
-                            )
-                          : SharedWithMeScreen(
-                              token: widget.token,
-                              budget: budget,
-                            );
-                      Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(builder: (_) => screen),
-                      ).then((changed) {
-                        if (changed == true) _loadBudgets();
-                      });
-                    },
-                  ),
+                  (budget) {
+                    final budgetId = (budget['id'] as num).toInt();
+                    final settlements = settlementsByBudget[budgetId] ??
+                        const <Map<String, dynamic>>[];
+                    final settledAmount = settlements.fold<double>(
+                      0,
+                      (sum, settlement) =>
+                          sum + ((settlement['amount'] as num?)?.toDouble() ?? 0),
+                    );
+                    final allSettled = settlements.isNotEmpty &&
+                        settlements.every(
+                          (settlement) =>
+                              settlement['fullyPaid'] == true ||
+                              ((settlement['remainingAmount'] as num?)
+                                      ?.toDouble() ??
+                                  0) <=
+                                  0,
+                        );
+                    return _BudgetTile(
+                      title: budget['name']?.toString() ?? 'Budget',
+                      amount:
+                          'Rs ${settledAmount.toStringAsFixed(0)} of Rs ${((budget['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}',
+                      isSettled: allSettled,
+                      onTap: () {
+                        final screen = showOwned
+                            ? SharedOwnedBudgetProfileScreen(
+                                token: widget.token,
+                                budget: budget,
+                              )
+                            : SharedWithMeScreen(
+                                token: widget.token,
+                                budget: budget,
+                              );
+                        Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(builder: (_) => screen),
+                        ).then((changed) {
+                          if (changed == true) _loadBudgets();
+                        });
+                      },
+                    );
+                  },
                 ),
             ],
           ),
@@ -458,13 +485,13 @@ class _Tab extends StatelessWidget {
 class _BudgetTile extends StatelessWidget {
   final String title;
   final String amount;
-  final double progress;
+  final bool isSettled;
   final VoidCallback onTap;
 
   const _BudgetTile({
     required this.title,
     required this.amount,
-    required this.progress,
+    required this.isSettled,
     required this.onTap,
   });
 
@@ -483,29 +510,20 @@ class _BudgetTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           child: Row(
             children: [
-              SizedBox(
+              Container(
                 width: 46,
                 height: 46,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 4,
-                      backgroundColor: const Color(0xFFDDE3F3),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFFF47C20),
-                      ),
-                    ),
-                    Text(
-                      '${(progress * 100).round()}%',
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                decoration: BoxDecoration(
+                  color: isSettled
+                      ? const Color(0xFFDDF5E5)
+                      : const Color(0xFFE8ECFA),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isSettled ? Icons.check : Icons.account_balance_wallet_outlined,
+                  color: isSettled
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF5066A0),
                 ),
               ),
               const SizedBox(width: 14),

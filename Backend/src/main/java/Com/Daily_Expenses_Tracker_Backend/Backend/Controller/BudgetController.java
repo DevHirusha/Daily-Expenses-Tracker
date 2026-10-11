@@ -92,7 +92,7 @@ public class BudgetController {
             @PathVariable Long budgetId,
             @Valid @RequestBody UpdateBudgetSplitRequest request,
             @CurrentSecurityContext(expression = "authentication?.name") String email) {
-        budgetService.updateSplit(email, budgetId, request.getPercentages());
+        budgetService.updateSplit(email, budgetId, request.getPercentages(), request.getAmounts());
     }
 
     @PostMapping("/{budgetId}/settlements")

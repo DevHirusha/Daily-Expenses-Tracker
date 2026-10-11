@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'announcements_screen.dart';
 import 'Shared_expenses_dashboard.dart';
 import 'find_gigs_screen.dart';
 import 'login_screen.dart';
@@ -24,14 +25,41 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _budgets = const [];
   List<_HomeCategorySummary> _todayCategories = const [];
   List<_RecentExpense> _recentExpenses = const [];
+  List<Map<String, dynamic>> _announcements = const [];
   double _todaySpent = 0;
   double? _totalSpent = 0;
   bool _isLoading = true;
+
+  int get _unreadAnnouncementCount => _announcements
+      .where((announcement) => announcement['read'] != true)
+      .length;
 
   @override
   void initState() {
     super.initState();
     _loadBudgets();
+    _loadAnnouncements();
+  }
+
+  Future<void> _loadAnnouncements() async {
+    try {
+      final announcements = await ApiService.getAnnouncements(
+        token: widget.token,
+      );
+      if (mounted) setState(() => _announcements = announcements);
+    } catch (_) {
+      // Keep the dashboard usable if announcements are temporarily unavailable.
+    }
+  }
+
+  Future<void> _openAnnouncements() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnnouncementsScreen(token: widget.token),
+      ),
+    );
+    _loadAnnouncements();
   }
 
   Future<void> _loadBudgets() async {
@@ -308,7 +336,12 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Header(name: _firstName, onLogout: _logout),
+                _Header(
+                  name: _firstName,
+                  onLogout: _logout,
+                  onNotifications: _openAnnouncements,
+                  notificationCount: _unreadAnnouncementCount,
+                ),
                 const SizedBox(height: 12),
                 _BudgetHero(
                   total: total,
@@ -358,7 +391,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ? () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => FindGigsScreen(token: widget.token),
+                                    builder: (_) =>
+                                        FindGigsScreen(token: widget.token),
                                   ),
                                 )
                               : () => widget.onNavigate!(3),
@@ -650,9 +684,11 @@ class _RecentExpense {
 String _recentDisplayCategory(String name) {
   final value = name.toLowerCase();
   if (value.contains('food') || value.contains('eating')) return 'Food';
-  if (value.contains('transport') || value.contains('travel')) return 'Transport';
+  if (value.contains('transport') || value.contains('travel'))
+    return 'Transport';
   if (value.contains('bill') || value.contains('utility')) return 'Bills';
-  if (value.contains('grocery') || value.contains('groceries')) return 'Groceries';
+  if (value.contains('grocery') || value.contains('groceries'))
+    return 'Groceries';
   return name;
 }
 
@@ -689,8 +725,15 @@ Color _recentCategoryColor(String category) {
 class _Header extends StatelessWidget {
   final String name;
   final VoidCallback onLogout;
+  final VoidCallback onNotifications;
+  final int notificationCount;
 
-  const _Header({required this.name, required this.onLogout});
+  const _Header({
+    required this.name,
+    required this.onLogout,
+    required this.onNotifications,
+    required this.notificationCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -710,14 +753,42 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
-        IconButton(
-          onPressed: onLogout,
-          icon: const Icon(
-            Icons.notifications_none,
-            color: Color(0xFF172C57),
-            size: 21,
-          ),
-          tooltip: 'Notifications',
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              onPressed: onNotifications,
+              icon: const Icon(
+                Icons.notifications_none,
+                color: Color(0xFF172C57),
+                size: 21,
+              ),
+              tooltip: 'Notifications',
+            ),
+            if (notificationCount > 0)
+              Positioned(
+                right: 7,
+                top: 5,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 16),
+                  height: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF47C20),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    notificationCount > 9 ? '9+' : '$notificationCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         IconButton(
           onPressed: onLogout,
@@ -767,7 +838,9 @@ class _BudgetHero extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            isLoading ? 'Loading...' : 'Rs ${remaining.toStringAsFixed(0)} left',
+            isLoading
+                ? 'Loading...'
+                : 'Rs ${remaining.toStringAsFixed(0)} left',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 25,

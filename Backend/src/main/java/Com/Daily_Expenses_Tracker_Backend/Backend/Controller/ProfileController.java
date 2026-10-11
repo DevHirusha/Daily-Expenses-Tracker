@@ -2,6 +2,7 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Controller;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.ProfileUpdateRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.EmailService;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.ProfileService;
 import jakarta.validation.Valid;
@@ -32,5 +33,12 @@ public class ProfileController {
       @GetMapping("/profile")
       public ProfileResponse getProfile(@CurrentSecurityContext(expression = "authentication?.name") String email) {
              return profileService.getProfile(email);
+      }
+
+      @PutMapping("/profile")
+      public ProfileResponse updateProfile(
+              @CurrentSecurityContext(expression = "authentication?.name") String email,
+              @Valid @RequestBody ProfileUpdateRequest request) {
+             return profileService.updateProfile(email, request);
       }
 }

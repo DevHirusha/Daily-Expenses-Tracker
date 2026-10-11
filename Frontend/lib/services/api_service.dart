@@ -53,6 +53,58 @@ class ApiService {
     return _postJson(Uri.parse('$baseUrl/google'), {
       'idToken': idToken,
     }, tag: 'GOOGLE LOGIN');
+  // ---------- PROFILE ----------
+  static Future<Map<String, dynamic>> getProfile({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/profile'),
+      token: token,
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<Map<String, dynamic>> updateProfile({
+    required String token,
+    required String name,
+    required String username,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/profile'),
+      token: token,
+      payload: {'name': name, 'username': username},
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  // ---------- ANNOUNCEMENTS ----------
+  static Future<List<Map<String, dynamic>>> getAnnouncements({
+    required String token,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'GET',
+      url: Uri.parse('$baseUrl/announcements'),
+      token: token,
+    );
+    return _mapList(result);
+  }
+
+  static Future<void> markAllAnnouncementsRead({required String token}) async {
+    await _authorizedJson(
+      method: 'POST',
+      url: Uri.parse('$baseUrl/announcements/read-all'),
+      token: token,
+    );
+  }
+
+  static Future<void> clearAllAnnouncements({required String token}) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/announcements'),
+      token: token,
+    );
   }
 
   // ---------- GIGS ----------
@@ -680,12 +732,13 @@ class ApiService {
     required String token,
     required int budgetId,
     required Map<String, double> percentages,
+    required Map<String, double> amounts,
   }) async {
     await _authorizedJson(
       method: 'PUT',
       url: Uri.parse('$baseUrl/budgets/$budgetId/split'),
       token: token,
-      payload: {'percentages': percentages},
+      payload: {'percentages': percentages, 'amounts': amounts},
     );
   }
 
