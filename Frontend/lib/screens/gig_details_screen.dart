@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 
@@ -102,6 +103,7 @@ class GigDetailsScreen extends StatelessWidget {
                         gigId: gigId,
                         company: company,
                         location: location,
+                        companyPhoneNumber: companyPhoneNumber,
                         applicationDeadline: applicationDeadline,
                       ),
                     ),
@@ -498,6 +500,7 @@ class ApplyContactScreen extends StatefulWidget {
     required this.gigId,
     required this.company,
     required this.location,
+    this.companyPhoneNumber = '',
     this.applicationDeadline,
   });
 
@@ -505,6 +508,7 @@ class ApplyContactScreen extends StatefulWidget {
   final int gigId;
   final String company;
   final String location;
+  final String companyPhoneNumber;
   final String? applicationDeadline;
 
   @override
@@ -554,7 +558,7 @@ class _ApplyContactScreenState extends State<ApplyContactScreen> {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {},
+                    onPressed: _callEmployer,
                     icon: const Icon(Icons.phone, size: 17),
                     label: const Text('Call employer'),
                     style: _orangeButton(),
@@ -563,7 +567,7 @@ class _ApplyContactScreenState extends State<ApplyContactScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: _messageEmployer,
                     icon: const Icon(Icons.chat_bubble_outline, size: 17),
                     label: const Text('Message'),
                     style: OutlinedButton.styleFrom(
@@ -636,6 +640,45 @@ class _ApplyContactScreenState extends State<ApplyContactScreen> {
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _callEmployer() async {
+    await _openContactUri(
+      Uri(scheme: 'tel', path: _contactNumber),
+      'call the employer',
+    );
+  }
+
+  Future<void> _messageEmployer() async {
+    await _openContactUri(
+      Uri(scheme: 'sms', path: _contactNumber),
+      'message the employer',
+    );
+  }
+
+  String get _contactNumber => widget.companyPhoneNumber.trim();
+
+  Future<void> _openContactUri(Uri uri, String action) async {
+    if (_contactNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No employer phone number is available.')),
+      );
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to $action on this device.')),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to $action on this device.')),
       );
     }
   }

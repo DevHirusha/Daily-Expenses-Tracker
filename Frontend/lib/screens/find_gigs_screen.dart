@@ -293,6 +293,7 @@ class _FindGigsScreenState extends State<FindGigsScreen> {
           gigId: gig.id!,
           company: gig.company,
           location: gig.location,
+          companyPhoneNumber: gig.companyPhoneNumber,
           applicationDeadline: gig.applicationDeadline,
         ),
       ),

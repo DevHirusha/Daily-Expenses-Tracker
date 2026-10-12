@@ -23,6 +23,7 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.2
   syncfusion_flutter_pdfviewer: ^33.2.13
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
