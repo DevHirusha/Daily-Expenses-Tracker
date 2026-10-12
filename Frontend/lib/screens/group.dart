@@ -368,63 +368,69 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE8ECFA),
-      appBar: AppBar(
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && mounted) Navigator.pop(context, _hasChanges);
+      },
+      child: Scaffold(
         backgroundColor: const Color(0xFFE8ECFA),
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context, _hasChanges),
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF172C57)),
-          tooltip: 'Back',
-        ),
-        title: const Text(
-          'Group details',
-          style: TextStyle(
-            color: Color(0xFF172C57),
-            fontWeight: FontWeight.bold,
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFE8ECFA),
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context, _hasChanges),
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF172C57)),
+            tooltip: 'Back',
+          ),
+          title: const Text(
+            'Group details',
+            style: TextStyle(
+              color: Color(0xFF172C57),
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(9, 4, 9, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _GroupHeader(
-                name: _groupName,
-                memberCount: widget.memberCount,
-                icon: groupIconData(_groupIcon),
-              ),
-              const SizedBox(height: 12),
-              _InviteCard(
-                joinCode: _joinCode,
-                onCopyCode: _copyCode,
-                onCopy: _copyLink,
-                canReset: widget.isOwner,
-                isResetting: _isResettingCode,
-                onReset: _resetJoinCode,
-              ),
-              const SizedBox(height: 12),
-              _SettingsRow(
-                icon: Icons.people_alt_outlined,
-                label: 'View members',
-                onTap: _showMembers,
-              ),
-              const SizedBox(height: 8),
-              _SettingsRow(
-                icon: Icons.settings,
-                label: 'Group settings',
-                onTap: _isUpdatingSettings ? () {} : _openGroupSettings,
-              ),
-              const SizedBox(height: 8),
-              _SettingsRow(
-                icon: Icons.logout,
-                label: 'Leave group',
-                onTap: _leaveGroup,
-              ),
-            ],
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(9, 4, 9, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _GroupHeader(
+                  name: _groupName,
+                  memberCount: widget.memberCount,
+                  icon: groupIconData(_groupIcon),
+                ),
+                const SizedBox(height: 12),
+                _InviteCard(
+                  joinCode: _joinCode,
+                  onCopyCode: _copyCode,
+                  onCopy: _copyLink,
+                  canReset: widget.isOwner,
+                  isResetting: _isResettingCode,
+                  onReset: _resetJoinCode,
+                ),
+                const SizedBox(height: 12),
+                _SettingsRow(
+                  icon: Icons.people_alt_outlined,
+                  label: 'View members',
+                  onTap: _showMembers,
+                ),
+                const SizedBox(height: 8),
+                _SettingsRow(
+                  icon: Icons.settings,
+                  label: 'Group settings',
+                  onTap: _isUpdatingSettings ? () {} : _openGroupSettings,
+                ),
+                const SizedBox(height: 8),
+                _SettingsRow(
+                  icon: Icons.logout,
+                  label: 'Leave group',
+                  onTap: _leaveGroup,
+                ),
+              ],
+            ),
           ),
         ),
       ),

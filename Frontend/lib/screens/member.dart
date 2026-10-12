@@ -239,20 +239,23 @@ class _MembersScreenState extends State<MembersScreen> {
                       icon: groupIconData(group.icon),
                       iconBackground: const Color(0xFFE1E8FA),
                       iconColor: const Color(0xFF5A8DEE),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => GroupDetailsScreen(
-                            token: widget.token,
-                            groupId: group.id,
-                            name: group.name,
-                            memberCount: '${group.memberCount} members',
-                            joinCode: group.joinCode,
-                            icon: group.icon,
-                            isOwner: group.isOwner,
+                      onTap: () async {
+                        final changed = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GroupDetailsScreen(
+                              token: widget.token,
+                              groupId: group.id,
+                              name: group.name,
+                              memberCount: '${group.memberCount} members',
+                              joinCode: group.joinCode,
+                              icon: group.icon,
+                              isOwner: group.isOwner,
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                        if (changed == true && mounted) _loadGroups();
+                      },
                     ),
                   ),
                 ),
@@ -444,6 +447,7 @@ class _Group {
   const _Group({
     required this.id,
     required this.name,
+    required this.icon,
     required this.joinCode,
     required this.memberCount,
     required this.isOwner,
