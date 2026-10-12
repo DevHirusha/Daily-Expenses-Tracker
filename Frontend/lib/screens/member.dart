@@ -236,7 +236,7 @@ class _MembersScreenState extends State<MembersScreen> {
                     child: _GroupCard(
                       name: group.name,
                       details: '${group.memberCount} members • Active',
-                      icon: Icons.groups_outlined,
+                      icon: groupIconData(group.icon),
                       iconBackground: const Color(0xFFE1E8FA),
                       iconColor: const Color(0xFF5A8DEE),
                       onTap: () => Navigator.push(
@@ -248,6 +248,7 @@ class _MembersScreenState extends State<MembersScreen> {
                             name: group.name,
                             memberCount: '${group.memberCount} members',
                             joinCode: group.joinCode,
+                            icon: group.icon,
                             isOwner: group.isOwner,
                           ),
                         ),
@@ -435,6 +436,7 @@ class _GroupQrScannerScreenState extends State<_GroupQrScannerScreen> {
 class _Group {
   final int id;
   final String name;
+  final String icon;
   final String joinCode;
   final int memberCount;
   final bool isOwner;
@@ -451,6 +453,7 @@ class _Group {
     return _Group(
       id: (json['id'] as num?)?.toInt() ?? 0,
       name: json['name']?.toString() ?? 'Unnamed group',
+      icon: json['icon']?.toString() ?? 'groups',
       joinCode: json['joinCode']?.toString() ?? '',
       memberCount: (json['memberCount'] as num?)?.toInt() ?? 0,
       isOwner: json['owner'] == true,
