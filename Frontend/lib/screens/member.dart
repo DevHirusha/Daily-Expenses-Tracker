@@ -41,8 +41,6 @@ class MembersScreen extends StatefulWidget {
 }
 
 class _MembersScreenState extends State<MembersScreen> {
-  static const _scanQrAction = '__SCAN_GROUP_QR__';
-
   List<_Group> groups = const [];
   bool isLoading = true;
   bool isJoining = false;
@@ -81,78 +79,14 @@ class _MembersScreenState extends State<MembersScreen> {
   }
 
   Future<void> _openJoinGroup() async {
-    final controller = TextEditingController();
     final enteredValue = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Join a group'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              textCapitalization: TextCapitalization.characters,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: 'Join code',
-                hintText: 'Enter or paste the code',
-                suffixIcon: IconButton(
-                  tooltip: 'Paste join code',
-                  icon: const Icon(Icons.content_paste),
-                  onPressed: () async {
-                    final data = await Clipboard.getData(Clipboard.kTextPlain);
-                    if (data?.text != null) {
-                      controller.text = data!.text!.trim();
-                    }
-                  },
-                ),
-              ),
-              onSubmitted: (_) => Navigator.pop(
-                dialogContext,
-                controller.text.trim().toUpperCase(),
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    Navigator.pop(dialogContext, _scanQrAction),
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Scan QR code'),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final code = controller.text.trim().toUpperCase();
-              if (code.isNotEmpty) Navigator.pop(dialogContext, code);
-            },
-            child: const Text('Join'),
-          ),
-        ],
-      ),
+      builder: (_) => const _JoinGroupDialog(),
     );
-    controller.dispose();
 
     if (!mounted || enteredValue == null) return;
 
-    String? joinCode;
-    if (enteredValue == _scanQrAction) {
-      joinCode = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(builder: (_) => const _GroupQrScannerScreen()),
-      );
-    } else {
-      joinCode = _extractGroupJoinCode(enteredValue);
-    }
+    final joinCode = _extractGroupJoinCode(enteredValue);
 
     if (joinCode == null || joinCode.isEmpty || !mounted) return;
 
@@ -325,6 +259,89 @@ class _MembersScreenState extends State<MembersScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _JoinGroupDialog extends StatefulWidget {
+  const _JoinGroupDialog();
+
+  @override
+  State<_JoinGroupDialog> createState() => _JoinGroupDialogState();
+}
+
+class _JoinGroupDialogState extends State<_JoinGroupDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scanQrCode() async {
+    final joinCode = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const _GroupQrScannerScreen()),
+    );
+
+    if (!mounted || joinCode == null) return;
+    Navigator.of(context).pop(joinCode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Join a group'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              labelText: 'Join code',
+              hintText: 'Enter or paste the code',
+              suffixIcon: IconButton(
+                tooltip: 'Paste join code',
+                icon: const Icon(Icons.content_paste),
+                onPressed: () async {
+                  final data = await Clipboard.getData(Clipboard.kTextPlain);
+                  if (!mounted || data?.text == null) return;
+                  _controller.text = data!.text!.trim();
+                },
+              ),
+            ),
+            onSubmitted: (_) => Navigator.pop(
+              context,
+              _controller.text.trim().toUpperCase(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _scanQrCode,
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan QR code'),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final code = _controller.text.trim().toUpperCase();
+            if (code.isNotEmpty) Navigator.pop(context, code);
+          },
+          child: const Text('Join'),
+        ),
+      ],
     );
   }
 }
