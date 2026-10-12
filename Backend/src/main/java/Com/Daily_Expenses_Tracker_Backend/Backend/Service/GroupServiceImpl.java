@@ -3,10 +3,13 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Service;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateGroupRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateGroupRequest;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.GroupEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.GroupMemberEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.FriendListRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GroupMemberRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GroupRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
@@ -28,6 +31,7 @@ public class GroupServiceImpl implements GroupService {
 
     private final UserRepository userRepository;
     private final FriendListRepository friendListRepository;
+    private final BudgetRepository budgetRepository;
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
 
@@ -55,6 +59,7 @@ public class GroupServiceImpl implements GroupService {
 
         GroupEntity group = groupRepository.save(GroupEntity.builder()
                 .name(request.getName().trim())
+                .icon("groups")
                 .joinCode(generateJoinCode())
                 .owner(owner)
                 .build());
@@ -95,6 +100,32 @@ public class GroupServiceImpl implements GroupService {
         }
         group.setJoinCode(generateJoinCode());
         return toResponse(groupRepository.save(group), owner);
+    }
+
+    @Override
+    public GroupResponse updateGroup(String email, Long groupId, UpdateGroupRequest request) {
+        UserEntity owner = getUser(email);
+        GroupEntity group = getGroupForMember(groupId, owner);
+        requireOwner(group, owner);
+
+        group.setName(request.getName().trim());
+        group.setIcon(request.getIcon().trim());
+        return toResponse(groupRepository.save(group), owner);
+    }
+
+    @Override
+    public void deleteGroup(String email, Long groupId) {
+        UserEntity owner = getUser(email);
+        GroupEntity group = getGroupForMember(groupId, owner);
+        requireOwner(group, owner);
+
+        // Keep budgets and expenses usable as personal budgets after the group is removed.
+        for (BudgetEntity budget : budgetRepository.findByGroup(group)) {
+            budget.setGroup(null);
+        }
+        budgetRepository.flush();
+        groupMemberRepository.deleteAllByGroup(group);
+        groupRepository.delete(group);
     }
 
     @Override
@@ -235,9 +266,18 @@ public class GroupServiceImpl implements GroupService {
         return GroupResponse.builder()
                 .id(group.getId())
                 .name(group.getName())
+                .icon(group.getIcon() == null || group.getIcon().isBlank() ? "groups" : group.getIcon())
                 .joinCode(group.getJoinCode())
                 .memberCount((int) groupMemberRepository.countByGroup(group))
                 .owner(group.getOwner().getId().equals(currentUser.getId()))
                 .build();
+    }
+
+    private void requireOwner(GroupEntity group, UserEntity user) {
+        if (!group.getOwner().getId().equals(user.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Only the group owner can manage group settings"
+            );
+        }
     }
 }

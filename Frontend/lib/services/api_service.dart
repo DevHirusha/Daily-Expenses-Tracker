@@ -300,6 +300,32 @@ class ApiService {
     return Map<String, dynamic>.from(result as Map);
   }
 
+  static Future<Map<String, dynamic>> updateGroup({
+    required String token,
+    required int groupId,
+    required String name,
+    required String icon,
+  }) async {
+    final result = await _authorizedJson(
+      method: 'PUT',
+      url: Uri.parse('$baseUrl/groups/$groupId'),
+      token: token,
+      payload: {'name': name.trim(), 'icon': icon},
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  static Future<void> deleteGroup({
+    required String token,
+    required int groupId,
+  }) async {
+    await _authorizedJson(
+      method: 'DELETE',
+      url: Uri.parse('$baseUrl/groups/$groupId'),
+      token: token,
+    );
+  }
+
   static Future<List<Map<String, dynamic>>> getGroupMembers({
     required String token,
     required int groupId,

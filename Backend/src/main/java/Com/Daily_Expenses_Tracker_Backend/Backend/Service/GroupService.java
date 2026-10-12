@@ -3,6 +3,7 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Service;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateGroupRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateGroupRequest;
 
 import java.util.List;
 
@@ -13,6 +14,10 @@ public interface GroupService {
     GroupResponse joinGroup(String email, String joinCode);
 
     GroupResponse resetJoinCode(String email, Long groupId);
+
+    GroupResponse updateGroup(String email, Long groupId, UpdateGroupRequest request);
+
+    void deleteGroup(String email, Long groupId);
 
     List<GroupResponse> getGroups(String email);
 

@@ -26,6 +26,10 @@ public class GroupEntity {
     @Column(nullable = false, length = 80)
     private String name;
 
+    // Nullable keeps schema updates safe for groups created before icons were added.
+    @Column(length = 40)
+    private String icon;
+
     @Column(unique = true, nullable = false, length = 12)
     private String joinCode;
 

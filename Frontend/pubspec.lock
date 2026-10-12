@@ -121,14 +121,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
-  cupertino_icons:
-    dependency: "direct main"
-    description:
-      name: cupertino_icons
-      sha256: "41e005c33bd814be4d3096aff55b1908d419fde52ca656c8c47719ec745873cd"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.9"
   device_info_plus:
     dependency: transitive
     description:
@@ -725,14 +717,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  smooth_page_indicator:
-    dependency: "direct dev"
-    description:
-      name: smooth_page_indicator
-      sha256: ab2253be8d65ed7a341a43fe62d5cfba404b5969c23bc998964fe5aa8aae465c
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
   source_span:
     dependency: transitive
     description:

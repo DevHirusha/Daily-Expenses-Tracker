@@ -3,12 +3,52 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/api_service.dart';
 
+IconData groupIconData(String key) {
+  switch (key) {
+    case 'home_work':
+      return Icons.home_work_outlined;
+    case 'sports_soccer':
+      return Icons.sports_soccer;
+    case 'music_note':
+      return Icons.music_note;
+    case 'beach_access':
+      return Icons.beach_access;
+    case 'school':
+      return Icons.school_outlined;
+    case 'work':
+      return Icons.work_outline;
+    case 'favorite':
+      return Icons.favorite_outline;
+    case 'travel_explore':
+      return Icons.travel_explore;
+    case 'restaurant':
+      return Icons.restaurant_outlined;
+    case 'groups':
+    default:
+      return Icons.groups;
+  }
+}
+
+const _groupIconOptions = <String>[
+  'groups',
+  'home_work',
+  'sports_soccer',
+  'music_note',
+  'beach_access',
+  'school',
+  'work',
+  'favorite',
+  'travel_explore',
+  'restaurant',
+];
+
 class GroupDetailsScreen extends StatefulWidget {
   final String token;
   final int groupId;
   final String name;
   final String memberCount;
   final String joinCode;
+  final String icon;
   final bool isOwner;
 
   const GroupDetailsScreen({
@@ -18,6 +58,7 @@ class GroupDetailsScreen extends StatefulWidget {
     required this.name,
     required this.memberCount,
     required this.joinCode,
+    this.icon = 'groups',
     required this.isOwner,
   });
 
@@ -26,13 +67,196 @@ class GroupDetailsScreen extends StatefulWidget {
 }
 
 class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
+  late String _groupName;
+  late String _groupIcon;
   late String _joinCode;
   bool _isResettingCode = false;
+  bool _isUpdatingSettings = false;
+  bool _hasChanges = false;
 
   @override
   void initState() {
     super.initState();
+    _groupName = widget.name;
+    _groupIcon = widget.icon;
     _joinCode = widget.joinCode;
+  }
+
+  Future<void> _openGroupSettings() async {
+    if (!widget.isOwner) {
+      _showMessage('Only the group owner can manage group settings');
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              leading: Icon(Icons.settings_outlined),
+              title: Text(
+                'Group settings',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit group name'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _editGroupName();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Update group icon'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _updateGroupIcon();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Delete group',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _deleteGroup();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editGroupName() async {
+    final controller = TextEditingController(text: _groupName);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit group name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 80,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Group name'),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (name == null || name.trim().isEmpty || !mounted) return;
+    await _saveGroupSettings(name: name.trim(), icon: _groupIcon);
+  }
+
+  Future<void> _updateGroupIcon() async {
+    final icon = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Update group icon'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
+            children: _groupIconOptions
+                .map(
+                  (key) => IconButton.filledTonal(
+                    onPressed: () => Navigator.pop(dialogContext, key),
+                    icon: Icon(groupIconData(key)),
+                    tooltip: key.replaceAll('_', ' '),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ),
+    );
+
+    if (icon == null || !mounted) return;
+    await _saveGroupSettings(name: _groupName, icon: icon);
+  }
+
+  Future<void> _saveGroupSettings({
+    required String name,
+    required String icon,
+  }) async {
+    setState(() => _isUpdatingSettings = true);
+    try {
+      final group = await ApiService.updateGroup(
+        token: widget.token,
+        groupId: widget.groupId,
+        name: name,
+        icon: icon,
+      );
+      if (!mounted) return;
+      setState(() {
+        _groupName = group['name']?.toString() ?? name;
+        _groupIcon = group['icon']?.toString() ?? icon;
+        _isUpdatingSettings = false;
+        _hasChanges = true;
+      });
+      _showMessage('Group settings updated', isError: false);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isUpdatingSettings = false);
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _deleteGroup() async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete group?'),
+        content: const Text(
+          'This removes the group for all members. Existing budgets will be kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true || !mounted) return;
+
+    setState(() => _isUpdatingSettings = true);
+    try {
+      await ApiService.deleteGroup(token: widget.token, groupId: widget.groupId);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isUpdatingSettings = false);
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
+    }
   }
 
   Future<void> _showMembers() async {
@@ -150,7 +374,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         backgroundColor: const Color(0xFFE8ECFA),
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, _hasChanges),
           icon: const Icon(Icons.arrow_back, color: Color(0xFF172C57)),
           tooltip: 'Back',
         ),
@@ -168,7 +392,11 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _GroupHeader(name: widget.name, memberCount: widget.memberCount),
+              _GroupHeader(
+                name: _groupName,
+                memberCount: widget.memberCount,
+                icon: groupIconData(_groupIcon),
+              ),
               const SizedBox(height: 12),
               _InviteCard(
                 joinCode: _joinCode,
@@ -188,7 +416,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               _SettingsRow(
                 icon: Icons.settings,
                 label: 'Group settings',
-                onTap: () {},
+                onTap: _isUpdatingSettings ? () {} : _openGroupSettings,
               ),
               const SizedBox(height: 8),
               _SettingsRow(
@@ -446,8 +674,13 @@ class _FriendToAddRow extends StatelessWidget {
 class _GroupHeader extends StatelessWidget {
   final String name;
   final String memberCount;
+  final IconData icon;
 
-  const _GroupHeader({required this.name, required this.memberCount});
+  const _GroupHeader({
+    required this.name,
+    required this.memberCount,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -460,10 +693,10 @@ class _GroupHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 25,
             backgroundColor: Color(0xFF234B88),
-            child: Icon(Icons.groups, color: Colors.white, size: 30),
+            child: Icon(icon, color: Colors.white, size: 30),
           ),
           const SizedBox(width: 16),
           Column(

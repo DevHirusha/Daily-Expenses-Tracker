@@ -1,8 +1,9 @@
 package Com.Daily_Expenses_Tracker_Backend.Backend.Controller;
 
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.CreateGroupRequest;
-import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupResponse;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupMemberResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.GroupResponse;
+import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.UpdateGroupRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Service.GroupService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -42,6 +43,24 @@ public class GroupController {
             @CurrentSecurityContext(expression = "authentication?.name") String email
     ) {
         return groupService.resetJoinCode(email, groupId);
+    }
+
+    @PutMapping("/{groupId}")
+    public GroupResponse updateGroup(
+            @PathVariable Long groupId,
+            @Valid @RequestBody UpdateGroupRequest request,
+            @CurrentSecurityContext(expression = "authentication?.name") String email
+    ) {
+        return groupService.updateGroup(email, groupId, request);
+    }
+
+    @DeleteMapping("/{groupId}")
+    public ResponseEntity<Void> deleteGroup(
+            @PathVariable Long groupId,
+            @CurrentSecurityContext(expression = "authentication?.name") String email
+    ) {
+        groupService.deleteGroup(email, groupId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

@@ -8,6 +8,7 @@ import lombok.Value;
 public class GroupResponse {
     Long id;
     String name;
+    String icon;
     String joinCode;
     int memberCount;
     boolean owner;
