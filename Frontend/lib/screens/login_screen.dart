@@ -5,6 +5,7 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'app_shell.dart';
 import '../services/api_service.dart';
+import '../services/auth_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -82,6 +83,8 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Login response did not include a token');
       }
 
+      await AuthStorage.saveSession(email: returnedEmail, token: token);
+
       if (!mounted) return;
 
       _showSnack('Login successful', Colors.green);
@@ -143,6 +146,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (token == null || token.isEmpty) {
         throw Exception('Google login response did not include a token');
       }
+
+      await AuthStorage.saveSession(email: returnedEmail, token: token);
 
       if (!mounted) return;
       _showSnack('Google login successful', Colors.green);

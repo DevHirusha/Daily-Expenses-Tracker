@@ -1,7 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'screens/app_shell.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/auth_storage.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -23,16 +23,30 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(seconds: 2),
     )..repeat();
 
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const OnboardingScreen(),
-          ),
-        );
-      }
-    });
+    _openInitialScreen();
+  }
+
+  Future<void> _openInitialScreen() async {
+    StoredSession? session;
+    try {
+      session = await AuthStorage.readSession();
+    } catch (_) {
+      // A storage/plugin failure should still leave the user at login rather
+      // than keeping the splash screen open indefinitely.
+      session = null;
+    }
+    await Future<void>.delayed(const Duration(seconds: 3));
+
+    if (!mounted) return;
+
+    final nextScreen = session == null
+        ? const OnboardingScreen()
+        : AppShell(email: session.email, token: session.token);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => nextScreen),
+    );
   }
 
   @override

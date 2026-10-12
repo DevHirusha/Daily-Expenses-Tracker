@@ -4,6 +4,7 @@ import 'announcements_screen.dart';
 import 'Shared_expenses_dashboard.dart';
 import 'find_gigs_screen.dart';
 import 'login_screen.dart';
+import '../services/auth_storage.dart';
 
 class HomeScreen extends StatefulWidget {
   final String email;
@@ -213,7 +214,10 @@ class _HomeScreenState extends State<HomeScreen> {
         : value[0].toUpperCase() + value.substring(1);
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    await AuthStorage.clearSession();
+    if (!mounted) return;
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
