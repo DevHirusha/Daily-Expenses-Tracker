@@ -11,4 +11,6 @@ import java.util.List;
 public interface BudgetSettlementRepository extends JpaRepository<BudgetSettlementEntity, Long> {
     Optional<BudgetSettlementEntity> findByBudgetAndPayer(BudgetEntity budget, UserEntity payer);
     List<BudgetSettlementEntity> findByBudgetOrderByCreatedAtAsc(BudgetEntity budget);
+    void deleteAllByBudget(BudgetEntity budget);
+    void deleteAllByPayer(UserEntity payer);
 }

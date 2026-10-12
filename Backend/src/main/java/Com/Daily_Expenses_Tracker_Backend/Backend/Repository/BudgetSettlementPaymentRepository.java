@@ -12,4 +12,8 @@ public interface BudgetSettlementPaymentRepository
     List<BudgetSettlementPaymentEntity> findByBudgetAndPayerOrderByCreatedAtAsc(
             BudgetEntity budget,
             UserEntity payer);
+
+    void deleteAllByBudget(BudgetEntity budget);
+
+    void deleteAllByPayer(UserEntity payer);
 }

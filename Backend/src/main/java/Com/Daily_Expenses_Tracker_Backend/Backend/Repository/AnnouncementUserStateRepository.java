@@ -15,4 +15,6 @@ public interface AnnouncementUserStateRepository
     );
 
     List<AnnouncementUserStateEntity> findAllByUserId(String userId);
+
+    void deleteAllByUserId(String userId);
 }

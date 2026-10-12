@@ -34,4 +34,8 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequestEnti
             @Param("user") UserEntity user,
             @Param("status") FriendRequestStatus status
     );
+
+    void deleteAllByRequester(UserEntity requester);
+
+    void deleteAllByRecipient(UserEntity recipient);
 }

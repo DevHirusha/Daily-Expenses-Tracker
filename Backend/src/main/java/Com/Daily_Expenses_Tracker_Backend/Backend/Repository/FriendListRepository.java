@@ -11,4 +11,8 @@ public interface FriendListRepository extends JpaRepository<FriendListEntity, Lo
     List<FriendListEntity> findByUserOrderByCreatedAtDesc(UserEntity user);
 
     boolean existsByUserAndFriend(UserEntity user, UserEntity friend);
+
+    void deleteAllByUser(UserEntity user);
+
+    void deleteAllByFriend(UserEntity friend);
 }

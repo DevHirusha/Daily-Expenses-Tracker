@@ -23,6 +23,9 @@ const emptyForm = {
 const getErrorMessage = (error, fallback) =>
   error.response?.data?.message ||
   (typeof error.response?.data === "string" ? error.response.data : null) ||
+  (error.response?.status === 401
+    ? "Your admin session is no longer valid. Please sign in again from the menu."
+    : null) ||
   fallback;
 
 const isCurrentUserSuperAdmin = () => {
@@ -151,7 +154,7 @@ const ManageUsers = () => {
     setError("");
     setNotice("");
     try {
-      await api.delete(`/admin/users/${user.id}`);
+      await api.delete(`/admin/users/${user.id}`, { skipAuthRedirect: true });
       setUsers((current) => current.filter((item) => item.id !== user.id));
       setNotice("User deleted successfully.");
     } catch (requestError) {

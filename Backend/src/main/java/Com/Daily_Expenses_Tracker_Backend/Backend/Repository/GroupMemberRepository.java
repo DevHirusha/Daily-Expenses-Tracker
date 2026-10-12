@@ -20,6 +20,10 @@ public interface GroupMemberRepository extends JpaRepository<GroupMemberEntity, 
 
     Optional<GroupMemberEntity> findByGroupAndUser(GroupEntity group, UserEntity user);
 
+    void deleteAllByGroup(GroupEntity group);
+
+    void deleteAllByUser(UserEntity user);
+
     @Query("select member.group from GroupMemberEntity member where member.user = :user order by member.createdAt desc")
     List<GroupEntity> findGroupsForUser(@Param("user") UserEntity user);
 }

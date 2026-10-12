@@ -5,8 +5,23 @@ import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AdminUserCreateRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.DTO.AdminUserUpdateRequest;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.Role;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
-import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetEntity;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.GroupEntity;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.SavingsGoalEntity;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.AnnouncementUserStateRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetCategoryRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetSettlementPaymentRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.BudgetSettlementRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.ExpenseRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.FriendListRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.FriendRequestRepository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GigApplicationRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GroupMemberRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.GroupRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.SavingsGoalHistoryRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.SavingsGoalRepository;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,6 +46,18 @@ public class AdminController {
 
     private final UserRepository userRepository;
     private final GigApplicationRepository applicationRepository;
+    private final AnnouncementUserStateRepository announcementUserStateRepository;
+    private final BudgetRepository budgetRepository;
+    private final BudgetCategoryRepository budgetCategoryRepository;
+    private final BudgetSettlementPaymentRepository settlementPaymentRepository;
+    private final BudgetSettlementRepository settlementRepository;
+    private final ExpenseRepository expenseRepository;
+    private final FriendListRepository friendListRepository;
+    private final FriendRequestRepository friendRequestRepository;
+    private final GroupMemberRepository groupMemberRepository;
+    private final GroupRepository groupRepository;
+    private final SavingsGoalHistoryRepository savingsGoalHistoryRepository;
+    private final SavingsGoalRepository savingsGoalRepository;
     private final PasswordEncoder passwordEncoder;
 
     // Get all users
@@ -205,7 +232,7 @@ public class AdminController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a super admin can delete a super admin");
         }
 
-        applicationRepository.deleteAllByApplicant_Id(id);
+        deleteUserData(user);
         userRepository.delete(user);
 
         return ResponseEntity.ok("Deleted");
@@ -214,6 +241,48 @@ public class AdminController {
     private UserEntity findUser(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    private void deleteUserData(UserEntity user) {
+        announcementUserStateRepository.deleteAllByUserId(user.getUserId());
+        applicationRepository.deleteAllByApplicant_Id(user.getId());
+        friendListRepository.deleteAllByUser(user);
+        friendListRepository.deleteAllByFriend(user);
+        friendRequestRepository.deleteAllByRequester(user);
+        friendRequestRepository.deleteAllByRecipient(user);
+        groupMemberRepository.deleteAllByUser(user);
+        settlementPaymentRepository.deleteAllByPayer(user);
+        settlementRepository.deleteAllByPayer(user);
+        expenseRepository.deleteAllByOwner(user);
+
+        for (SavingsGoalEntity goal : savingsGoalRepository.findByOwnerOrderByTargetDateAsc(user)) {
+            savingsGoalHistoryRepository.deleteByGoal(goal);
+        }
+        savingsGoalRepository.deleteAll(savingsGoalRepository.findByOwnerOrderByTargetDateAsc(user));
+
+        for (GroupEntity group : groupRepository.findByOwnerOrderByCreatedAtDesc(user)) {
+            for (BudgetEntity budget : budgetRepository.findByGroup(group)) {
+                budget.setGroup(null);
+            }
+            budgetRepository.flush();
+            groupMemberRepository.deleteAllByGroup(group);
+            groupRepository.delete(group);
+        }
+
+        for (BudgetEntity budget : budgetRepository.findByOwnerOrderByIdDesc(user)) {
+            expenseRepository.deleteAllByBudget(budget);
+            budgetCategoryRepository.deleteAllByBudget(budget);
+            settlementPaymentRepository.deleteAllByBudget(budget);
+            settlementRepository.deleteAllByBudget(budget);
+            budgetRepository.delete(budget);
+        }
+
+        budgetRepository.findSharedByMemberUserId(user.getUserId()).forEach(budget -> {
+            if (budget.getMemberUserIds() != null) {
+                budget.getMemberUserIds().removeIf(user.getUserId()::equals);
+                budgetRepository.save(budget);
+            }
+        });
     }
 
     private void requireSuperAdmin(Authentication authentication) {

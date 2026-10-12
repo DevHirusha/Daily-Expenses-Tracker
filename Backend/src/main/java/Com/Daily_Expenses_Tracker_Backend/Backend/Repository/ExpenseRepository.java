@@ -3,6 +3,7 @@ package Com.Daily_Expenses_Tracker_Backend.Backend.Repository;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetCategoryEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.BudgetEntity;
 import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.ExpenseEntity;
+import Com.Daily_Expenses_Tracker_Backend.Backend.Entity.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,4 +37,8 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, Long> {
             @Param("category") BudgetCategoryEntity category,
             @Param("start") LocalDate start,
             @Param("end") LocalDate end);
+
+    void deleteAllByBudget(BudgetEntity budget);
+
+    void deleteAllByOwner(UserEntity owner);
 }

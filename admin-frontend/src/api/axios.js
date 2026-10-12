@@ -31,7 +31,11 @@ api.interceptors.response.use(
   (error) => {
     const isLoginRequest = error.config?.url?.includes("/admin/login");
 
-    if (error.response?.status === 401 && !isLoginRequest) {
+    if (
+      error.response?.status === 401 &&
+      !isLoginRequest &&
+      !error.config?.skipAuthRedirect
+    ) {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_user");
 

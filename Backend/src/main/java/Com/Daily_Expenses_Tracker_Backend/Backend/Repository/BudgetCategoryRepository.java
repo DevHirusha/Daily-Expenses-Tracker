@@ -11,4 +11,5 @@ public interface BudgetCategoryRepository extends JpaRepository<BudgetCategoryEn
     List<BudgetCategoryEntity> findByBudgetOrderByIdAsc(BudgetEntity budget);
     Optional<BudgetCategoryEntity> findByIdAndBudget(Long id, BudgetEntity budget);
     Optional<BudgetCategoryEntity> findByBudgetAndNameIgnoreCase(BudgetEntity budget, String name);
+    void deleteAllByBudget(BudgetEntity budget);
 }

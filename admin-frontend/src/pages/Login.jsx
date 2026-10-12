@@ -10,7 +10,6 @@ import {
 } from "react-icons/fi";
 import { MdCopyright } from "react-icons/md";
 import { RiAdminFill } from "react-icons/ri";
-import { assets } from "../assets/images/assets";
 import api from "../api/axios";
 
 function Login() {
@@ -19,23 +18,14 @@ function Login() {
   const redirectTo = location.state?.from?.pathname || "/dashboard";
 
   // Form state
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem("admin_email") || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem("admin_email")));
 
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Load saved email
-  useEffect(() => {
-    const savedEmail = localStorage.getItem("admin_email");
-    if (savedEmail) {
-      setEmail(savedEmail);
-      setRememberMe(true);
-    }
-  }, []);
 
   // Already logged in? → redirect
   useEffect(() => {
@@ -136,19 +126,8 @@ function Login() {
 
       <div className="relative z-10 w-full max-w-sm">
         <div className="rounded-2xl border border-white/10 bg-white/95 p-5 shadow-2xl backdrop-blur-xl sm:p-6">
-          {/* Logo */}
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-white p-1.5 shadow-md ring-1 ring-slate-200">
-              <img
-                src={assets.logo}
-                alt="PocketCrew Logo"
-                className="h-full w-full rounded-lg object-contain"
-              />
-            </div>
-          </div>
-
           {/* Title */}
-          <div className="mb-5 text-center">
+          <div className="mb-6 text-center">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
               PocketCrew Admin Portal
             </h1>
