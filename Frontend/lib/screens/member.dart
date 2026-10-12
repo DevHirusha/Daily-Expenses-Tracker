@@ -1,10 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
 import 'add_member.dart';
 import 'crate_group.dart';
 import 'friendlist.dart';
 import 'group.dart';
+
+String? _extractGroupJoinCode(String value) {
+  final rawValue = value.trim();
+  if (rawValue.isEmpty) return null;
+
+  final uri = Uri.tryParse(rawValue);
+  if (uri != null && uri.scheme.toLowerCase() == 'daily-expenses') {
+    final queryCode = uri.queryParameters['code'];
+    final pathCode = uri.pathSegments.isNotEmpty
+        ? uri.pathSegments.last
+        : null;
+    return _normalizeGroupJoinCode(queryCode ?? pathCode);
+  }
+
+  return _normalizeGroupJoinCode(rawValue);
+}
+
+String? _normalizeGroupJoinCode(String? value) {
+  final code = value?.trim().toUpperCase();
+  if (code == null || !RegExp(r'^[A-Z0-9]{4,32}$').hasMatch(code)) {
+    return null;
+  }
+  return code;
+}
 
 class MembersScreen extends StatefulWidget {
   final String token;
@@ -16,6 +41,8 @@ class MembersScreen extends StatefulWidget {
 }
 
 class _MembersScreenState extends State<MembersScreen> {
+  static const _scanQrAction = '__SCAN_GROUP_QR__';
+
   List<_Group> groups = const [];
   bool isLoading = true;
   bool isJoining = false;
@@ -55,31 +82,48 @@ class _MembersScreenState extends State<MembersScreen> {
 
   Future<void> _openJoinGroup() async {
     final controller = TextEditingController();
-    final joinCode = await showDialog<String>(
+    final enteredValue = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Join a group'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.characters,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(
-            labelText: 'Join code',
-            hintText: 'Enter or paste the code',
-            suffixIcon: IconButton(
-              tooltip: 'Paste join code',
-              icon: const Icon(Icons.content_paste),
-              onPressed: () async {
-                final data = await Clipboard.getData(Clipboard.kTextPlain);
-                if (data?.text != null) controller.text = data!.text!.trim();
-              },
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'Join code',
+                hintText: 'Enter or paste the code',
+                suffixIcon: IconButton(
+                  tooltip: 'Paste join code',
+                  icon: const Icon(Icons.content_paste),
+                  onPressed: () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    if (data?.text != null) {
+                      controller.text = data!.text!.trim();
+                    }
+                  },
+                ),
+              ),
+              onSubmitted: (_) => Navigator.pop(
+                dialogContext,
+                controller.text.trim().toUpperCase(),
+              ),
             ),
-          ),
-          onSubmitted: (_) => Navigator.pop(
-            dialogContext,
-            controller.text.trim().toUpperCase(),
-          ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, _scanQrAction),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Scan QR code'),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -97,6 +141,19 @@ class _MembersScreenState extends State<MembersScreen> {
       ),
     );
     controller.dispose();
+
+    if (!mounted || enteredValue == null) return;
+
+    String? joinCode;
+    if (enteredValue == _scanQrAction) {
+      joinCode = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (_) => const _GroupQrScannerScreen()),
+      );
+    } else {
+      joinCode = _extractGroupJoinCode(enteredValue);
+    }
+
     if (joinCode == null || joinCode.isEmpty || !mounted) return;
 
     setState(() => isJoining = true);
@@ -267,6 +324,92 @@ class _MembersScreenState extends State<MembersScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GroupQrScannerScreen extends StatefulWidget {
+  const _GroupQrScannerScreen();
+
+  @override
+  State<_GroupQrScannerScreen> createState() => _GroupQrScannerScreenState();
+}
+
+class _GroupQrScannerScreenState extends State<_GroupQrScannerScreen> {
+  final MobileScannerController _controller = MobileScannerController(
+    formats: [BarcodeFormat.qrCode],
+  );
+  bool _didScan = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_didScan) return;
+
+    for (final barcode in capture.barcodes) {
+      final value = barcode.rawValue;
+      if (value == null) continue;
+
+      final joinCode = _extractGroupJoinCode(value);
+      if (joinCode == null) continue;
+
+      _didScan = true;
+      Navigator.of(context).pop(joinCode);
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Scan group QR code'),
+        backgroundColor: const Color(0xFF172C57),
+        foregroundColor: Colors.white,
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: _onDetect,
+          ),
+          IgnorePointer(
+            child: Center(
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 3),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 32,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Point your camera at the group QR code',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

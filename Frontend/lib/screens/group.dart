@@ -557,6 +557,7 @@ class _InviteCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(11),
             ),
             child: QrImageView(
+              key: ValueKey(joinCode),
               data: 'daily-expenses://group/$joinCode',
               size: 92,
               backgroundColor: Colors.white,
