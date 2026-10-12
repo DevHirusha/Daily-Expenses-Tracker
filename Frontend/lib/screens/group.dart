@@ -42,6 +42,8 @@ const _groupIconOptions = <String>[
   'restaurant',
 ];
 
+enum _GroupSettingAction { editName, updateIcon, deleteGroup }
+
 class GroupDetailsScreen extends StatefulWidget {
   final String token;
   final int groupId;
@@ -88,7 +90,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
       return;
     }
 
-    await showModalBottomSheet<void>(
+    final action = await showModalBottomSheet<_GroupSettingAction>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
@@ -106,16 +108,14 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
               leading: const Icon(Icons.edit_outlined),
               title: const Text('Edit group name'),
               onTap: () {
-                Navigator.pop(sheetContext);
-                _editGroupName();
+                Navigator.pop(sheetContext, _GroupSettingAction.editName);
               },
             ),
             ListTile(
               leading: const Icon(Icons.image_outlined),
               title: const Text('Update group icon'),
               onTap: () {
-                Navigator.pop(sheetContext);
-                _updateGroupIcon();
+                Navigator.pop(sheetContext, _GroupSettingAction.updateIcon);
               },
             ),
             ListTile(
@@ -125,8 +125,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
                 style: TextStyle(color: Colors.red),
               ),
               onTap: () {
-                Navigator.pop(sheetContext);
-                _deleteGroup();
+                Navigator.pop(sheetContext, _GroupSettingAction.deleteGroup);
               },
             ),
             const SizedBox(height: 8),
@@ -134,35 +133,25 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
         ),
       ),
     );
+
+    if (!mounted) return;
+    switch (action) {
+      case _GroupSettingAction.editName:
+        await _editGroupName();
+      case _GroupSettingAction.updateIcon:
+        await _updateGroupIcon();
+      case _GroupSettingAction.deleteGroup:
+        await _deleteGroup();
+      case null:
+        return;
+    }
   }
 
   Future<void> _editGroupName() async {
-    final controller = TextEditingController(text: _groupName);
     final name = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit group name'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 80,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Group name'),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => _GroupNameDialog(initialName: _groupName),
     );
-    controller.dispose();
 
     if (name == null || name.trim().isEmpty || !mounted) return;
     await _saveGroupSettings(name: name.trim(), icon: _groupIcon);
@@ -249,7 +238,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
 
     setState(() => _isUpdatingSettings = true);
     try {
-      await ApiService.deleteGroup(token: widget.token, groupId: widget.groupId);
+      await ApiService.deleteGroup(
+        token: widget.token,
+        groupId: widget.groupId,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
@@ -303,9 +295,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
   }
 
   void _copyLink() {
-    Clipboard.setData(
-      ClipboardData(text: 'daily-expenses://group/$_joinCode'),
-    );
+    Clipboard.setData(ClipboardData(text: 'daily-expenses://group/$_joinCode'));
     _showMessage('Group link copied', isError: false);
   }
 
@@ -434,6 +424,57 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _GroupNameDialog extends StatefulWidget {
+  final String initialName;
+
+  const _GroupNameDialog({required this.initialName});
+
+  @override
+  State<_GroupNameDialog> createState() => _GroupNameDialogState();
+}
+
+class _GroupNameDialogState extends State<_GroupNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.pop(context, _controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit group name'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 80,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(labelText: 'Group name'),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Save')),
+      ],
     );
   }
 }
