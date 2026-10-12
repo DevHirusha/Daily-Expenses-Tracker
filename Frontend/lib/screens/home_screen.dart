@@ -63,8 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadAnnouncements();
   }
 
-  Future<void> _loadBudgets() async {
+  Future<void> _loadBudgets({bool forceRefresh = false}) async {
     try {
+      if (forceRefresh) {
+        ApiService.clearCache(token: widget.token);
+      }
       final budgets = await ApiService.getBudgets(token: widget.token);
       var todayCategories = _defaultHomeCategories();
       var recentExpenses = <_RecentExpense>[];
@@ -74,15 +77,30 @@ class _HomeScreenState extends State<HomeScreen> {
       final ownedBudgets = budgets
           .where((item) => item['owner'] == true)
           .toList();
+      final categoryFuture = ownedBudgets.isEmpty
+          ? null
+          : ApiService.getBudgetCategories(
+              token: widget.token,
+              budgetId: (ownedBudgets.first['id'] as num).toInt(),
+            );
+      final expenseResults = await Future.wait(
+        budgets.map((budget) async {
+          final budgetId = (budget['id'] as num?)?.toInt();
+          if (budgetId == null) {
+            return (id: -1, expenses: <Map<String, dynamic>>[]);
+          }
+          final expenses = await ApiService.getExpenses(
+            token: widget.token,
+            budgetId: budgetId,
+          );
+          return (id: budgetId, expenses: expenses);
+        }),
+      );
       final expensesByBudget = <int, List<Map<String, dynamic>>>{};
-      for (final budget in budgets) {
-        final budgetId = (budget['id'] as num?)?.toInt();
-        if (budgetId == null) continue;
-        final expenses = await ApiService.getExpenses(
-          token: widget.token,
-          budgetId: budgetId,
-        );
-        expensesByBudget[budgetId] = expenses;
+      for (final result in expenseResults) {
+        if (result.id == -1) continue;
+        final expenses = result.expenses;
+        expensesByBudget[result.id] = expenses;
         for (final expense in expenses) {
           recentExpenses.add(_RecentExpense.fromJson(expense));
           final amount = (expense['amount'] as num?)?.toDouble() ?? 0;
@@ -97,10 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       if (ownedBudgets.isNotEmpty) {
         final budgetId = (ownedBudgets.first['id'] as num).toInt();
-        final categories = await ApiService.getBudgetCategories(
-          token: widget.token,
-          budgetId: budgetId,
-        );
+        final categories = await categoryFuture!;
         final expenses = expensesByBudget[budgetId] ?? const [];
         final spendingByCategory = <int, double>{};
         for (final expense in expenses) {
@@ -216,6 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _logout() async {
     await AuthStorage.clearSession();
+    ApiService.clearCache();
     if (!mounted) return;
 
     Navigator.pushAndRemoveUntil(
@@ -333,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadBudgets,
+          onRefresh: () => _loadBudgets(forceRefresh: true),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 92),

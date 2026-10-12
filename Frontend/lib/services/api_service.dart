@@ -5,6 +5,13 @@ import 'package:http/http.dart' as http;
 import 'api_client.dart';
 
 class ApiService {
+  // Keep one client alive so mobile and web clients can reuse connections.
+  // The old implementation created and closed a client for every request,
+  // which made screens with several API calls feel especially slow.
+  static final http.Client _authorizedClient = createApiClient();
+  static final Map<String, _CacheEntry> _getCache = {};
+  static final Map<String, Future<dynamic>> _inFlightGets = {};
+
   static final String baseUrl =
       const String.fromEnvironment('API_BASE_URL', defaultValue: '').isNotEmpty
       ? const String.fromEnvironment('API_BASE_URL')
@@ -915,19 +922,83 @@ class ApiService {
     required String token,
     Map<String, dynamic>? payload,
   }) async {
-    final client = createApiClient();
-    try {
-      final normalizedToken = token.trim();
-      if (normalizedToken.isEmpty) {
-        throw Exception('Your session has expired. Please log in again.');
+    final normalizedToken = token.trim();
+    if (normalizedToken.isEmpty) {
+      throw Exception('Your session has expired. Please log in again.');
+    }
+
+    final normalizedMethod = method.toUpperCase();
+    if (normalizedMethod == 'GET') {
+      return _cachedAuthorizedGet(
+        url: url,
+        token: normalizedToken,
+        payload: payload,
+      );
+    }
+
+    final result = await _sendAuthorizedJson(
+      method: normalizedMethod,
+      url: url,
+      token: normalizedToken,
+      payload: payload,
+    );
+    // Mutations can affect several screens, so remove all cached reads for
+    // this session before the next screen is opened.
+    _invalidateCache(normalizedToken);
+    return result;
+  }
+
+  static Future<dynamic> _cachedAuthorizedGet({
+    required Uri url,
+    required String token,
+    Map<String, dynamic>? payload,
+  }) async {
+    final cacheKey = '$token\n$url';
+    final cached = _getCache[cacheKey];
+    if (cached != null) {
+      if (cached.expiresAt.isAfter(DateTime.now())) {
+        return _cloneJson(cached.value);
       }
+      _getCache.remove(cacheKey);
+    }
+
+    final running = _inFlightGets[cacheKey];
+    if (running != null) return _cloneJson(await running);
+
+    final request = _sendAuthorizedJson(
+      method: 'GET',
+      url: url,
+      token: token,
+      payload: payload,
+    );
+    _inFlightGets[cacheKey] = request;
+    try {
+      final value = await request;
+      _getCache[cacheKey] = _CacheEntry(
+        value: _cloneJson(value),
+        expiresAt: DateTime.now().add(_cacheDuration(url)),
+      );
+      return _cloneJson(value);
+    } finally {
+      if (identical(_inFlightGets[cacheKey], request)) {
+        _inFlightGets.remove(cacheKey);
+      }
+    }
+  }
+
+  static Future<dynamic> _sendAuthorizedJson({
+    required String method,
+    required Uri url,
+    required String token,
+    Map<String, dynamic>? payload,
+  }) async {
+    try {
       final request = http.Request(method, url)
         ..headers['Content-Type'] = 'application/json'
-        ..headers['Authorization'] = 'Bearer $normalizedToken';
-      if (payload != null) {
-        request.body = jsonEncode(payload);
-      }
-      final response = await client
+        ..headers['Authorization'] = 'Bearer $token';
+      if (payload != null) request.body = jsonEncode(payload);
+
+      final response = await _authorizedClient
           .send(request)
           .timeout(const Duration(seconds: 15));
       final body = await http.Response.fromStream(response);
@@ -954,9 +1025,40 @@ class ApiService {
       throw Exception('Cannot reach server. Is backend running on port 8080?');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
-    } finally {
-      client.close();
     }
+  }
+
+  static Duration _cacheDuration(Uri url) {
+    final path = url.path;
+    if (path.contains('/expenses')) return const Duration(seconds: 15);
+    if (path.contains('/announcements')) return const Duration(seconds: 30);
+    if (path.contains('/gigs')) return const Duration(minutes: 2);
+    if (path.contains('/categories')) return const Duration(minutes: 2);
+    if (path.contains('/profile')) return const Duration(minutes: 2);
+    return const Duration(seconds: 45);
+  }
+
+  static dynamic _cloneJson(dynamic value) {
+    if (value == null) return null;
+    try {
+      return jsonDecode(jsonEncode(value));
+    } catch (_) {
+      return value;
+    }
+  }
+
+  /// Use this for an explicit pull-to-refresh so the next request is fresh.
+  static void clearCache({String? token}) {
+    if (token == null || token.trim().isEmpty) {
+      _getCache.clear();
+      return;
+    }
+    _invalidateCache(token.trim());
+  }
+
+  static void _invalidateCache(String token) {
+    final prefix = '$token\n';
+    _getCache.removeWhere((key, _) => key.startsWith(prefix));
   }
 
   static List<Map<String, dynamic>> _mapList(dynamic value) {
@@ -966,4 +1068,11 @@ class ApiService {
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
+}
+
+class _CacheEntry {
+  final dynamic value;
+  final DateTime expiresAt;
+
+  const _CacheEntry({required this.value, required this.expiresAt});
 }

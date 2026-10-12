@@ -35,7 +35,9 @@ class _SplashScreenState extends State<SplashScreen>
       // than keeping the splash screen open indefinitely.
       session = null;
     }
-    await Future<void>.delayed(const Duration(seconds: 3));
+    // Keep the brand moment, but do not make returning users wait three
+    // seconds after their session has already been restored.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
 
     if (!mounted) return;
 

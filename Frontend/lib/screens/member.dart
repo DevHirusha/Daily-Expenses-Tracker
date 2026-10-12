@@ -312,7 +312,7 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
                   _controller.text = data!.text!.trim();
                 },
               ),
-            ),
+            ), 
             onSubmitted: (_) => Navigator.pop(
               context,
               _controller.text.trim().toUpperCase(),
